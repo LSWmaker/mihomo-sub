@@ -14,10 +14,31 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+    # 检出代码
     - uses: actions/checkout@v4
 
+    # 设置镜像标签
     - name: Set IMAGE_TAG
-      run: echo "IMAGE_TAG=$(date +%Y%m%d)-${GITHUB_RUN_NUMBER}" >> $GITHUB_ENV
+      id: tag
+      run: |
+        # 获取 Git SHA 短哈希（7位）
+        SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
+        
+        # 获取当前日期
+        BUILD_DATE=$(date +%Y%m%d)
+        
+        # 检查当前提交是否有 Git 标签
+        if git describe --tags --exact-match HEAD 2>/dev/null; then
+          # 如果有标签，直接使用标签（不加哈希）
+          GIT_TAG=$(git describe --tags --exact-match HEAD)
+          IMAGE_TAG="${GIT_TAG}"
+        else
+          # 如果没有标签，使用日期和 SHA 确保唯一性
+          IMAGE_TAG="${BUILD_DATE}-${SHORT_SHA}"
+        fi
+        
+        echo "IMAGE_TAG=${IMAGE_TAG}" >> $GITHUB_ENV
+        echo "构建标签: ${IMAGE_TAG}"
 
     # 登录 Docker Hub
     - name: Log in to Docker Hub
