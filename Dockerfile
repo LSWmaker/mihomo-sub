@@ -39,12 +39,12 @@ RUN echo '#!/bin/sh' > /mihomo_init.sh && \
     echo '/mihomo &' >> /mihomo_init.sh && \
     echo '/subconverter/subconverter &' >> /mihomo_init.sh && \
     echo 'sleep 5' >> /mihomo_init.sh && \
-    echo '/etc/periodic/hourly/sub.sh' >> /mihomo_init.sh && \
+    echo '/etc/periodic/daily/sub.sh' >> /mihomo_init.sh && \
     echo 'exec crond -f -d 8' >> /mihomo_init.sh && \
     chmod +x /mihomo_init.sh
 
-# 15min    daily    hourly   monthly  weekly
-COPY sub.sh /etc/periodic/hourly/sub.sh
-RUN chmod +x /etc/periodic/hourly/sub.sh
+# 15min    daily    daily   monthly  weekly
+COPY sub.sh /etc/periodic/daily/sub.sh
+RUN chmod +x /etc/periodic/daily/sub.sh
 
 ENTRYPOINT ["/mihomo_init.sh"]
