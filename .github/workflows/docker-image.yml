@@ -75,14 +75,14 @@ jobs:
         if [ "${{ env.PUSH_LATEST }}" = "true" ]; then
           docker buildx build \
             --platform linux/amd64,linux/arm64,linux/arm/v7,linux/386 \
-            --tag purewhiteicecream/mihomo-sub:${{ env.IMAGE_TAG }} \
-            --tag purewhiteicecream/mihomo-sub:latest \
+            --tag lswmaker/mihomo-sub:${{ env.IMAGE_TAG }} \
+            --tag lswmaker/mihomo-sub:latest \
             --push \
             .
         else
           docker buildx build \
             --platform linux/amd64,linux/arm64,linux/arm/v7,linux/386 \
-            --tag purewhiteicecream/mihomo-sub:${{ env.IMAGE_TAG }} \
+            --tag lswmaker/mihomo-sub:${{ env.IMAGE_TAG }} \
             --push \
             .
         fi
