@@ -16,18 +16,18 @@
 ``` yml
 services:
   mihomo:
-    image: purewhiteicecream/mihomo-sub:latest
+    image: lsw951753/mihomo-sub:latest
     container_name: mihomo-sub
     volumes:
       - "config:/root/.config/mihomo"
+      - /home/user/log.txt:/root/.config/mihomo/log.txt
     environment:
       - "TZ=Asia/Shanghai"
-      - "sub_url=https://这里换成你的订阅地址"
+      - "sub_url="
       # - "config_url=选填
     ports:
      - "7890:7890"
      - "9090:9090"
-
 volumes:
   config:
 ```
