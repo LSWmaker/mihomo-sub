@@ -2,7 +2,7 @@ FROM metacubex/mihomo:v1.19.23
 
 RUN apk add --no-cache jq curl
 
-RUN wget -O /tmp/metacubexd.tgz https://github.com/MetaCubeX/metacubexd/releases/download/v1.195.23/compressed-dist.tgz && \
+RUN wget -O /tmp/metacubexd.tgz https://github.com/MetaCubeX/metacubexd/releases/download/v1.244.2/compressed-dist.tgz && \
     mkdir -p /root/.config/mihomo/ui && \
     tar -xzf /tmp/metacubexd.tgz -C /root/.config/mihomo/ui && \
     rm -rf /tmp/metacubexd.tgz
