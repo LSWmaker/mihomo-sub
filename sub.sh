@@ -12,6 +12,7 @@ log=""        # 保存日志内容
 
 output="${output}mixed-port: 7890\n"
 output="${output}external-ui: /root/.config/mihomo/ui\n"
+output="${output}external-controller: 0.0.0.0:9090\n"
 
 # ---------------------------
 # 检查并安装依赖
