@@ -10,10 +10,6 @@ LOG_FILE="${CONFIG_DIR}/log.txt"
 output=""     # 保存生成的 config 内容
 log=""        # 保存日志内容
 
-output="${output}mixed-port: 7890\n"
-output="${output}external-ui: /root/.config/mihomo/ui\n"
-output="${output}external-controller: 0.0.0.0:9090\n"
-
 # ---------------------------
 # 检查并安装依赖
 # ---------------------------
@@ -35,7 +31,6 @@ ensure_installed() {
 # ---------------------------
 sub_end() {
     log="${log}\n"
-    # 使用 printf %b 让 \n \t 生效
     printf "%b" "${log}" >> "${LOG_FILE}"
     exit 0
 }
@@ -82,9 +77,21 @@ elif [ "${sub_response}" -ne 200 ]; then
     sub_end
 fi
 
-# 去掉前两行写入 config
+# ---------------------------
+# 这里开始正确构建最终配置文件（一次性完成）
+# ---------------------------
 if [ -f /tmp/mihomo_temp.yml ]; then
-    output="${output}$(awk 'NR>=3' /tmp/mihomo_temp.yml)\n"
+    # 基础配置
+    output="${output}mixed-port: 7890\n"
+    output="${output}external-ui: /root/.config/mihomo/ui\n"
+    
+    # 订阅内容（跳过前两行，删除可能存在的 external-controller 行）
+    output="${output}$(awk 'NR>=3' /tmp/mihomo_temp.yml | sed '/^external-controller:/d')\n"
+    
+    # 最后强制写入正确的监听地址
+    output="${output}external-controller: 0.0.0.0:9090\n"
+    
+    # 一次性生成最终文件
     printf "%b" "${output}" > "${CONFIG_FILE}"
 else
     log="${log}Error❌️: 临时文件不存在\n\t"
@@ -99,7 +106,7 @@ log="${log}配置重新加载...\n\t"
 reload_response=$(curl -s --max-time 15 -w "%{http_code}" -X PUT "http://127.0.0.1:9090/configs?force=true" -H "Content-Type: application/json" -d '{"path":"","payload":""}')
 reload_exit_code=$?
 
-if [ "${reload_exit_code}" -ne 0 ]; then
+if [ "${sub_exit_code}" -ne 0 ]; then
     log="${log}Error❌️: 网络错误，退出码: ${reload_exit_code}\n\t"
     sub_end
 elif [ "${reload_response}" -ne 204 ]; then
