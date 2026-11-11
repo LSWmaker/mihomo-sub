@@ -93,8 +93,8 @@ Docker 化的 mihomo（clash meta）代理方案：类客户端（Clash Verge �
 
 | 组件 | 版本 | 来源 |
 |------|------|------|
-| mihomo | v1.19.25 | metacubex/mihomo 基础镜像 |
-| metacubexd | v1.248.7 | MetaCubeX releases |
+| mihomo | v1.19.33 | metacubex/mihomo 基础镜像 |
+| metacubexd | v1.274.6 | MetaCubeX releases |
 | subconverter | v0.9.9 | asdlokj1qpi233 fork |
 | yq | Alpine | 用户覆写深合并（mikefarah v4） |
 | busybox-extras | Alpine | httpd CGI 服务 |

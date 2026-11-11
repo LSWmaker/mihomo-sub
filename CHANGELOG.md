@@ -4,6 +4,8 @@
 
 ### 重构：proxy-providers 架构（类客户端形态）
 
+- **依赖升级**：mihomo v1.19.25 → v1.19.33，metacubexd v1.248.7 → v1.274.6
+
 - **Clash 格式订阅直连内核**：不再下载-提取-合并，交给 mihomo 原生 `proxy-providers` 按 interval 自动拉取 + 健康检查，拉取频率精确可控（防机场封禁）
 - **订阅管理升级**：增删改查、启停、重命名、改 URL（subs.json 元数据），全部 Web 页面完成
 - **刷新间隔档位**：6 小时 ~ 每 7 天六档白名单（默认每天），改完立即生效（重新渲染 provider interval）；旧值低于下限自动钳制
