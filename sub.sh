@@ -232,6 +232,13 @@ render_config() {
         printf '  store-selected: true\n'
         printf 'geo-auto-update: true\n'
         printf 'geo-update-interval: 168\n'
+        # 地理库更新走 jsdelivr 镜像(默认 GitHub release 在国内常被 DNS 污染);
+        # 可用 user-merge.yaml 覆盖
+        printf 'geox-url:\n'
+        printf '  geoip: https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@release/geoip.metadb\n'
+        printf '  geosite: https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@release/geosite.dat\n'
+        printf '  mmdb: https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@release/country.mmdb\n'
+        printf '  asn: https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@release/GeoLite2-ASN.mmdb\n'
         if [ "${enabled_count}" -gt 0 ]; then
             printf 'proxy-providers:\n'
             cat "${prov_part}"

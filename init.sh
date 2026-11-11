@@ -120,10 +120,12 @@ echo "🚀 启动 mihomo..."
 ) &
 sleep 2
 
-# 等待 mihomo 就绪
+# 等待 mihomo 就绪(3.0 起 API 带 secret 鉴权, 探测必须带 Bearer, 否则 401 被误判为未就绪)
+API_SECRET=$(cat "${SECRET_FILE}" 2>/dev/null)
 mihomo_ready=false
 for i in $(seq 1 10); do
-    if curl -sf --max-time 3 http://127.0.0.1:9090 > /dev/null 2>&1; then
+    if curl -sf --max-time 3 -H "Authorization: Bearer ${API_SECRET}" \
+        http://127.0.0.1:9090/version > /dev/null 2>&1; then
         echo "✅ mihomo 已就绪"
         mihomo_ready=true
         break

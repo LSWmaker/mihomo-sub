@@ -177,6 +177,8 @@ groups = {g['name']: g for g in cfg['proxy-groups']}
 assert 'PROXY' in groups and 'AUTO' in groups
 assert groups['PROXY']['include-all'] is True
 assert cfg['profile']['store-selected'] is True
+assert cfg['geo-auto-update'] is True
+assert 'jsdelivr' in cfg['geox-url']['geoip']   # 地理库更新走国内可达镜像
 print('  ok: YAML 结构与预期一致')
 " 2>&1 && PASS=$((PASS+1)) || bad "YAML 结构校验" "见上方 python 报错"
 

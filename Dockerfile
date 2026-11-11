@@ -65,6 +65,7 @@ ENV sub_url=""
 EXPOSE 7890 9090 9091
 
 HEALTHCHECK --interval=120s --timeout=10s --retries=3 \
-    CMD curl -sf --max-time 5 http://127.0.0.1:9090 || exit 1
+    CMD curl -sf --max-time 5 -H "Authorization: Bearer $(cat /root/.config/mihomo/secret)" \
+        http://127.0.0.1:9090/version || exit 1
 
 ENTRYPOINT ["/init.sh"]
