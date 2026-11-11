@@ -137,6 +137,8 @@ cat > "${CFG}/subs.json" <<'EOF'
 ]}
 EOF
 printf '172800' > "${CFG}/schedule.conf"
+# p2(file 类)需要本地 provider 文件存在
+printf 'proxies: []\n' > "${CFG}/providers/p2.yaml"
 # mihomo stub(-t 校验恒通过)
 mkdir -p "${TESTDIR}/stubs"
 printf '#!/bin/sh\nexit 0\n' > "${TESTDIR}/stubs/mihomo"
@@ -165,10 +167,10 @@ import yaml, sys
 cfg = yaml.safe_load(sys.stdin)
 assert cfg['mixed-port'] == 7890
 assert cfg['secret'] == 'test-secret-123'
-assert 'p1' in cfg['proxy-providers'] and 'p4' in cfg['proxy-providers'] and 'p3' not in cfg['proxy-providers']
+assert 'p1' in cfg['proxy-providers'] and 'p3' not in cfg['proxy-providers']
+assert 'p4' not in cfg['proxy-providers']   # pending(未分类)不渲染, 防止缺 provider 文件导致启动失败
 assert cfg['proxy-providers']['p1']['type'] == 'http'
 assert cfg['proxy-providers']['p2']['type'] == 'file'
-assert cfg['proxy-providers']['p4']['type'] == 'file'   # pending 渲染为 file 兜底, 待分类后纠正
 assert cfg['proxy-providers']['p1']['interval'] == 172800
 assert cfg['proxy-providers']['p1']['header']['User-Agent'] == ['clash-verge/v2.5.1']
 groups = {g['name']: g for g in cfg['proxy-groups']}
@@ -185,6 +187,25 @@ if command -v yq >/dev/null 2>&1; then
 else
     echo "  (本地无 yq, 容器内验证; render 已带回退逻辑)"
 fi
+
+say "sub.sh: 全 pending 订阅(旧版迁移场景)渲染 DIRECT-only 兜底"
+printf '{"subs":[{"id":"p1","name":"旧订阅","url":"https://old.example.com/sub","type":"pending","enabled":true}]}' > "${CFG}/subs.json"
+rc=0
+PATH="${TESTDIR}/stubs:${PATH}" sh "${TESTDIR}/sub_render.sh" --render >/dev/null 2>&1 || rc=$?
+BASE="${CFG}/.base.yaml"
+if grep -q 'proxy-providers:' "$BASE"; then
+    bad "全 pending 不渲染 providers" "$(grep -A2 proxy-providers $BASE | head -3)"
+else ok "全 pending 不渲染 providers"; fi
+grep -q 'proxies:' "$BASE" && grep -q '\- DIRECT' "$BASE" \
+    && ok "PROXY 分组兜底为 DIRECT" || bad "PROXY 分组兜底为 DIRECT" "$(grep -A3 'proxy-groups' $BASE)"
+cat "${BASE}" | python -c "
+import yaml, sys
+cfg = yaml.safe_load(sys.stdin)
+assert 'proxy-providers' not in cfg
+groups = {g['name']: g for g in cfg['proxy-groups']}
+assert groups['PROXY']['proxies'] == ['DIRECT']
+print('  ok: DIRECT-only 配置可独立启动')
+" 2>&1 && PASS=$((PASS+1)) || bad "DIRECT-only YAML 校验" "见上方报错"
 
 # ---------------------------
 # 汇总

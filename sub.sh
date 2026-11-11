@@ -179,20 +179,25 @@ classify_sub() {
 # ---------------------------
 render_config() {
     enabled_jsonl="${TEMP_DIR}/enabled.jsonl"
-    jq -c '.subs[] | select(.enabled == true)' "${SUBS_FILE}" 2>/dev/null > "${enabled_jsonl}"
-    enabled_count=0
-    while IFS= read -r _unused; do
-        enabled_count=$((enabled_count + 1))
-    done < "${enabled_jsonl}"
+    # 只取可用订阅: pending(未分类, 无数据源)不渲染, 防止 mihomo 启动失败
+    jq -c '.subs[] | select(.enabled == true) | select(.type == "http" or .type == "file")' \
+        "${SUBS_FILE}" 2>/dev/null > "${enabled_jsonl}"
 
     ua_json=$(jq -rn --arg x "${SUB_UA}" '$x|@json')
 
     # 生成 proxy-providers 段
     prov_part="${TEMP_DIR}/providers.part"
     : > "${prov_part}"
+    enabled_count=0
     while IFS= read -r sub; do
         cid=$(printf '%s' "${sub}" | jq -r '.id')
         ctype=$(printf '%s' "${sub}" | jq -r '.type')
+        # file 类 provider 文件缺失时跳过(转换产物被删/从未生成)
+        if [ "${ctype}" = "file" ] && [ ! -f "${PROV_DIR}/${cid}.yaml" ]; then
+            log="${log}警告: 订阅 ${cid} 缺少 provider 文件, 本次跳过\n\t"
+            continue
+        fi
+        enabled_count=$((enabled_count + 1))
         curl_url_json=$(printf '%s' "${sub}" | jq -r '.url | @json')
         {
             printf '  %s:\n' "${cid}"
@@ -355,7 +360,8 @@ apply_config
 # 强制刷新 providers:
 #   now 模式(手动/添加后): 全部 provider 立即拉取/重读
 #   cron 模式: 仅 file 类需要通知内核重读文件(http 类由内核按 interval 自管)
-jq -c '.subs[] | select(.enabled == true)' "${SUBS_FILE}" 2>/dev/null > "${TEMP_DIR}/active.jsonl"
+jq -c '.subs[] | select(.enabled == true) | select(.type == "http" or .type == "file")' \
+    "${SUBS_FILE}" 2>/dev/null > "${TEMP_DIR}/active.jsonl"
 while IFS= read -r sub; do
     cid=$(printf '%s' "${sub}" | jq -r '.id')
     ctype=$(printf '%s' "${sub}" | jq -r '.type // "pending"')

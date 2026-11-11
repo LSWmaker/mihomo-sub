@@ -95,6 +95,19 @@ fi
 mkdir -p "${CONFIG_DIR}/providers"
 
 # ---------------------------
+# 旧版/损坏的 config.yaml 会让 mihomo 反复崩溃(例如 2.x 多订阅合并产物
+# 引用不存在的节点)。config.yaml 本就是渲染产物: 启动前先校验,
+# 失败则备份并重新渲染(--render 零网络请求, 不依赖任何服务)
+# ---------------------------
+if [ -f "${CONFIG_DIR}/config.yaml" ]; then
+    if ! /mihomo -t -d "${CONFIG_DIR}" >/dev/null 2>&1; then
+        cp "${CONFIG_DIR}/config.yaml" "${CONFIG_DIR}/config.yaml.broken"
+        echo "⚠ 现有 config.yaml 校验失败(已备份为 config.yaml.broken), 重新渲染..."
+        /etc/periodic/15min/sub.sh --render || true
+    fi
+fi
+
+# ---------------------------
 # 启动 mihomo 核心(守护循环: 异常退出 2 秒后自动拉起)
 # ---------------------------
 echo "🚀 启动 mihomo..."
