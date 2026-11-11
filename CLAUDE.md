@@ -26,6 +26,10 @@ Docker 化的 mihomo（clash meta）代理方案：类客户端（Clash Verge �
 | 9090 | mihomo API / metacubexd WebUI | `/ui` 代理面板，Bearer secret 鉴权 |
 | 9091 | busybox-extras httpd | 管理页面 + CGI API，token=secret |
 
+## 依赖自动更新
+
+`renovate.json` 配置 Renovate 自动跟进上游发版：mihomo 基础镜像（docker manager）+ metacubexd/subconverter（regex manager 匹配 Dockerfile 内 wget URL 的 release tag）。PR 触发现有 CI 试构建，绿了自动合并（automerge）→ main 构建自动发版。前提：仓库已安装 [Renovate GitHub App](https://github.com/apps/renovate) 并在仓库设置开启 Allow auto-merge。
+
 ## 核心架构（proxy-providers 模式）
 
 订阅不由脚本全量下载合并——**Clash 格式订阅交给 mihomo 原生 `proxy-providers` 按 interval 自动拉取**（内核行为，节流可控）；非 Clash 格式由 sub.sh 经 subconverter 转换为本地 file provider。`config.yaml` 由固定模板渲染 + `user-merge.yaml` 深合并（yq），用户自定义永不丢失。

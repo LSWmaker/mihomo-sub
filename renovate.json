@@ -1,0 +1,30 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended"],
+  "timezone": "Asia/Shanghai",
+  "schedule": ["every weekday"],
+  "labels": ["dependencies"],
+  "automerge": true,
+  "automergeType": "pr",
+  "platformAutomerge": true,
+  "regexManagers": [
+    {
+      "description": "metacubexd 面板版本(wget URL 内的 release tag)",
+      "fileMatch": ["^Dockerfile$"],
+      "matchStrings": [
+        "metacubexd/releases/download/(?<currentValue>[^/]+)/compressed-dist\\.tgz"
+      ],
+      "datasourceTemplate": "github-releases",
+      "depNameTemplate": "MetaCubeX/metacubexd"
+    },
+    {
+      "description": "subconverter 版本(wget URL 内的 release tag)",
+      "fileMatch": ["^Dockerfile$"],
+      "matchStrings": [
+        "subconverter/releases/download/(?<currentValue>[^/]+)/\\$\\{SUBCONV_FILE\\}"
+      ],
+      "datasourceTemplate": "github-releases",
+      "depNameTemplate": "asdlokj1qpi233/subconverter"
+    }
+  ]
+}
