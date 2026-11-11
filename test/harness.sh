@@ -63,6 +63,16 @@ assert_contains "错误 token 返回 401" "$out" "401"
 out=$(REQUEST_METHOD=GET QUERY_STRING="action=auth&token=test-secret-123" sh "${TESTDIR}/api" 2>/dev/null)
 assert_contains "正确 token auth 成功" "$out" '"success":true'
 
+say "CGI: disable_auth 开关"
+out=$(REQUEST_METHOD=GET QUERY_STRING="action=config" sh "${TESTDIR}/api" 2>/dev/null)
+assert_contains "config 探针免鉴权且默认要求登录" "$out" '"auth_required":true'
+
+out=$(disable_auth=true REQUEST_METHOD=GET QUERY_STRING="action=config" sh "${TESTDIR}/api" 2>/dev/null)
+assert_contains "disable_auth=true 时探针返回免登录" "$out" '"auth_required":false'
+
+out=$(disable_auth=true REQUEST_METHOD=GET QUERY_STRING="action=status" sh "${TESTDIR}/api" 2>/dev/null)
+assert_contains "disable_auth=true 时无 token 可访问" "$out" '"sub_count"'
+
 say "CGI: status / list"
 out=$(REQUEST_METHOD=GET QUERY_STRING="action=status&token=test-secret-123" sh "${TESTDIR}/api" 2>/dev/null)
 assert_contains "status 返回 interval" "$out" '"interval":21600'

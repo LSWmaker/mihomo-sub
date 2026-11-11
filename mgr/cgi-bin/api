@@ -81,8 +81,27 @@ json_header
 
 # ---------------------------
 # 鉴权: token 必须等于 secret(auth action 即"用 token 试一下"的探针)
+# 环境变量 disable_auth=true 时关闭管理页校验(仅 9091; 9090 API 的
+# secret 不受影响, 代理面板仍受保护)
 # ---------------------------
-[ "${token}" = "${SECRET}" ] || err_out "未授权的访问(token 不正确)" 401
+AUTH_DISABLED=false
+case "${disable_auth}" in
+    true|1|yes|on) AUTH_DISABLED=true ;;
+esac
+
+# config 为免鉴权探针: 前端据此决定是否展示登录层
+if [ "${action}" = "config" ]; then
+    if [ "${AUTH_DISABLED}" = "true" ]; then
+        printf '{"auth_required":false}\n'
+    else
+        printf '{"auth_required":true}\n'
+    fi
+    exit 0
+fi
+
+if [ "${AUTH_DISABLED}" != "true" ]; then
+    [ "${token}" = "${SECRET}" ] || err_out "未授权的访问(token 不正确)" 401
+fi
 
 case "${action}" in
     auth)

@@ -21,13 +21,14 @@
 
 ## 特性
 
-- **Web 管理页面** — 添加/修改/删除/启停订阅，无需重建容器
+- **Web 管理页面** — 添加/修改/删除/启停订阅，无需重建容器；密码登录可按需关闭
 - **类客户端体验** — metacubexd 面板操作节点选择、延迟测试、连接查看、模式切换
 - **智能订阅接入** — Clash 格式订阅交给 mihomo 内核原生 `proxy-providers` 定时拉取；其他格式经 subconverter 自动转换
 - **可调刷新间隔** — 6 小时 ~ 每 7 天（默认每天），防止拉取过频被订阅服务商封禁
-- **API 鉴权** — 首次启动生成随机 secret，管理页与代理面板共用，一键登录
+- **API 鉴权** — 首次启动生成随机 secret，代理面板一键登录
 - **用户覆写** — `user-merge.yaml` 深合并进生成的配置，自定义 DNS/规则且**不会被订阅刷新冲掉**
-- **内核守护** — mihomo 异常退出自动拉起；GeoIP/GeoSite 每周自动更新
+- **内核守护** — mihomo 异常退出自动拉起；坏配置自动检测备份并重新渲染
+- **GeoIP/GeoSite 每周自动更新**（走 jsdelivr 镜像，国内可达；更新失败自动回退内置版本）
 - **配置持久化** — 所有状态保存在 `/root/.config/mihomo/`，更新镜像不丢失
 
 ## 服务端口
@@ -35,8 +36,8 @@
 | 端口 | 用途 |
 |------|------|
 | `7890` | 代理 mixed 端口（HTTP + SOCKS5，供局域网设备使用） |
-| `9090` | mihomo API + 代理面板 (`/ui`) |
-| `9091` | 订阅管理页面 |
+| `9090` | mihomo API + 代理面板 (`/ui`)，secret 鉴权 |
+| `9091` | 订阅管理页面，密码登录（可关闭） |
 
 ## 部署
 
@@ -72,17 +73,27 @@ docker run -d \
   lsw951753/mihomo-sub:latest
 ```
 
+## 环境变量
+
+| 变量 | 默认 | 说明 |
+|------|------|------|
+| `TZ` | - | 时区，如 `Asia/Shanghai`（推荐设置） |
+| `disable_auth` | `false` | `true` 时关闭管理页（`:9091`）的密码登录。**仅影响管理页**，9090 API/面板的 secret 保护不受影响，"打开面板"仍可一键登录。仅建议在完全可信的内网使用 |
+| `sub_url` | - | 初始订阅 URL（仅从 2.x 升级首次迁移时使用；之后通过管理页面管理） |
+
 ## 使用
 
 ### 首次登录
 
-首次启动自动生成随机访问密码（即 API secret）：
+默认启用密码登录。首次启动自动生成随机密码（即 API secret）：
 
 ```bash
 docker exec mihomo-sub cat /root/.config/mihomo/secret
 ```
 
 浏览器打开 `http://<服务器IP>:9091`，输入密码登录。
+
+不想输密码？在 compose 的 `environment` 里加一行 `- disable_auth=true` 后重建容器即可。
 
 ### 管理订阅
 
@@ -133,17 +144,16 @@ docker exec mihomo-sub /etc/periodic/15min/sub.sh --now
 | `geoip.metadb` / `geosite.dat` | 地理库（首次自动复制，之后内核每周自动更新） |
 | `config.yaml` | mihomo 配置（自动生成，勿手改——改 `user-merge.yaml`） |
 | `log.txt` | 同步日志（超 1MB 自动截断） |
-
-## 环境变量
-
-| 变量 | 必填 | 说明 |
-|------|------|------|
-| `TZ` | 推荐 | 时区，如 `Asia/Shanghai` |
-| `sub_url` | 否 | 初始订阅 URL（仅旧版升级首次迁移时使用；之后通过管理页面管理） |
+| `sub_urls.txt.bak` | 从 2.x 升级时的旧订阅列表备份 |
+| `config.yaml.broken` | 启动时检测到损坏的旧配置备份（如出现说明此前配置已坏，可删除） |
 
 ## 从 2.x 升级
 
-挂载目录不变。旧版 `sub_urls.txt` 会自动迁移到 `subs.json`（原文件保留为 `sub_urls.txt.bak`），旧版 `schedule.conf` 档位（`15min`/`hourly`/`daily`）自动换算为秒。
+挂载目录不变，全自动迁移：
+
+- `sub_urls.txt` → `subs.json`（原文件保留为 `.bak`）
+- 旧档位（`15min`/`hourly`）→ 6 小时，`daily` → 保持每天
+- 损坏的旧 `config.yaml`（如 2.x 多订阅合并产物）→ 自动备份为 `config.yaml.broken` 并重新渲染
 
 ## 常见问题
 
@@ -152,6 +162,10 @@ docker exec mihomo-sub /etc/periodic/15min/sub.sh --now
 ```bash
 docker exec mihomo-sub cat /root/.config/mihomo/secret
 ```
+
+**Q: 可以关闭管理页密码吗？**
+
+可以，设置环境变量 `disable_auth=true`。仅关闭 9091 管理页的登录；9090 API/代理面板仍受 secret 保护（这是有意的——无 secret 的 mihomo API 会暴露给局域网内任意设备甚至恶意网页）。仅建议在完全可信的内网使用。
 
 **Q: 更新镜像后配置会丢失吗？**
 
@@ -165,7 +179,11 @@ docker exec mihomo-sub cat /root/.config/mihomo/secret
 
 `config.yaml` 由程序自动生成，任何手动修改都会在下一次同步时被覆盖。请把自定义内容放进 `user-merge.yaml`。
 
+**Q: 日志里出现 GEO 数据库更新失败？**
+
+更新源走 jsdelivr 镜像，偶发失败无害——内核自动回退使用内置版本，下次周期会重试。
+
 ## 源码和仓库
 
-- 源码: `https://github.com/pure-white-ice-cream/mihomo-sub`
-- Docker Hub: `https://hub.docker.com/r/purewhiteicecream/mihomo-sub`
+- 源码: `https://github.com/LSWmaker/mihomo-sub`
+- Docker Hub: `https://hub.docker.com/r/lsw951753/mihomo-sub`

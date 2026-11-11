@@ -174,7 +174,13 @@ echo "📡 执行首次订阅同步..."
 
 # ---------------------------
 # 启动管理页面 (busybox httpd)
+# disable_auth=true 时关闭管理页密码登录(仅 9091, 9090 API 的 secret 不受影响)
 # ---------------------------
+case "${disable_auth}" in
+    true|1|yes|on)
+        echo "🔓 管理页密码登录已关闭(环境变量 disable_auth)"
+        ;;
+esac
 echo "🌐 启动管理页面 http://0.0.0.0:9091"
 busybox-extras httpd -h /usr/share/mihomo-mgr -p 9091
 

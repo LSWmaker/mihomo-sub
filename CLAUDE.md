@@ -52,10 +52,11 @@ Docker 化的 mihomo（clash meta）代理方案：类客户端（Clash Verge �
   → 记录 last_run
 ```
 
-### 管理页面 CGI API（全部需 token == secret，除 401 外均 JSON 响应）
+### 管理页面 CGI API（除 `config` 探针外均需 token == secret；环境变量 `disable_auth=true` 可关闭管理页鉴权——仅 9091，9090 API 的 secret 不受影响）
 
 | action | method | 说明 |
 |--------|--------|------|
+| `config` | GET | 免鉴权探针：`{"auth_required":bool}`，前端据此决定是否展示登录层 |
 | `auth` | GET | 校验 token（登录探针） |
 | `status` | GET | 订阅数、间隔、最后刷新、面板一键登录 URL |
 | `list` | GET | 订阅列表（id/name/url/type/enabled） |

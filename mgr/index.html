@@ -586,13 +586,22 @@ document.getElementById('panelBtn').onclick = () => {
     if (panelUrl) window.open(panelUrl, '_blank');
 };
 
-/* 启动: 有缓存 token 则静默登录, 失败(401)回落登录层 */
-if (token) {
-    tryLogin(token);
-} else {
-    showLogin();
-    document.getElementById('tokenInput').focus();
-}
+/* 启动: 先探询后端是否启用鉴权(disable_auth=true 时跳过登录) */
+(async () => {
+    try {
+        const cfg = await fetch(`${API}?action=config`).then(r => r.json());
+        if (cfg && cfg.auth_required === false) {
+            showApp();
+            return;
+        }
+    } catch (e) { /* 探针失败按需要登录处理 */ }
+    if (token) {
+        tryLogin(token);
+    } else {
+        showLogin();
+        document.getElementById('tokenInput').focus();
+    }
+})();
 </script>
 </body>
 </html>
