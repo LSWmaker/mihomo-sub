@@ -2,8 +2,10 @@
 
 CONFIG_DIR="/root/.config/mihomo"
 INIT_DIR="/usr/share/mihomo-init"
-SUB_URLS_FILE="${CONFIG_DIR}/sub_urls.txt"
+SUBS_FILE="${CONFIG_DIR}/subs.json"
 SCHEDULE_FILE="${CONFIG_DIR}/schedule.conf"
+SECRET_FILE="${CONFIG_DIR}/secret"
+LEGACY_URLS_FILE="${CONFIG_DIR}/sub_urls.txt"
 
 # ---------------------------
 # 配置文件初始化
@@ -39,27 +41,70 @@ if [ -f "${INIT_DIR}/geosite.dat" ]; then
     fi
 fi
 
-# 初始化订阅列表文件
-if [ ! -f "${SUB_URLS_FILE}" ]; then
-    if [ -n "${sub_url}" ]; then
-        echo "${sub_url}" > "${SUB_URLS_FILE}"
-        echo "📋 从环境变量初始化订阅列表"
-    else
-        touch "${SUB_URLS_FILE}"
-    fi
-fi
-
-# 初始化调度配置
-if [ ! -f "${SCHEDULE_FILE}" ]; then
-    echo "daily" > "${SCHEDULE_FILE}"
-    echo "⏱ 初始化调度配置: daily"
+# ---------------------------
+# API secret: 首次启动生成随机值，持久化在挂载目录
+# 保护 9090 API(面板)与 9091 管理页(CGI 校验 token == secret)
+# ---------------------------
+if [ ! -s "${SECRET_FILE}" ]; then
+    head -c 16 /dev/urandom | od -An -tx1 | tr -d ' \n' > "${SECRET_FILE}"
+    echo "🔐 已生成 API secret(管理页登录密码, 存于 secret 文件)"
 fi
 
 # ---------------------------
-# 启动 mihomo 核心
+# 旧版配置迁移: sub_urls.txt -> subs.json, schedule.conf 档位 -> 秒
+# ---------------------------
+if [ ! -f "${SUBS_FILE}" ] && [ -f "${LEGACY_URLS_FILE}" ] && [ -s "${LEGACY_URLS_FILE}" ]; then
+    echo "📦 迁移旧版订阅列表到 subs.json ..."
+    printf '{"subs":[]}' > "${SUBS_FILE}"
+    idx=0
+    while IFS= read -r line || [ -n "${line}" ]; do
+        line="${line%"$(printf '\r')"}"
+        case "${line}" in
+            ""|"#"*) continue ;;
+        esac
+        idx=$((idx + 1))
+        jq --arg id "p${idx}" --arg url "${line}" \
+            '.subs += [{"id":$id,"name":("订阅 " + $id),"url":$url,"type":"pending","enabled":true}]' \
+            "${SUBS_FILE}" > "${SUBS_FILE}.tmp" && mv "${SUBS_FILE}.tmp" "${SUBS_FILE}"
+    done < "${LEGACY_URLS_FILE}"
+    mv "${LEGACY_URLS_FILE}" "${LEGACY_URLS_FILE}.bak"
+    echo "📦 已迁移 ${idx} 个订阅(旧文件保留为 sub_urls.txt.bak)"
+fi
+
+if [ ! -f "${SUBS_FILE}" ]; then
+    printf '{"subs":[]}' > "${SUBS_FILE}"
+fi
+
+# schedule.conf: 统一存刷新间隔秒数(档位下限 6 小时, 防止拉取过频被订阅服务商封禁)
+if [ ! -f "${SCHEDULE_FILE}" ] || [ -z "$(head -1 "${SCHEDULE_FILE}" 2>/dev/null)" ]; then
+    echo 86400 > "${SCHEDULE_FILE}"
+    echo "⏱ 初始化刷新间隔: 每天"
+else
+    old_val=$(head -1 "${SCHEDULE_FILE}")
+    case "${old_val}" in
+        15min|hourly) echo 21600 > "${SCHEDULE_FILE}" ;;   # 旧文本档位 -> 6 小时
+        daily)        echo 86400 > "${SCHEDULE_FILE}" ;;   # 每天保持
+        *[!0-9]*)     : ;;                                 # 其他非数字内容不动, sub.sh 会用默认值
+        *)
+            # 数字值低于档位下限时钳制到 6 小时
+            [ "${old_val}" -lt 21600 ] && echo 21600 > "${SCHEDULE_FILE}"
+            ;;
+    esac
+fi
+
+mkdir -p "${CONFIG_DIR}/providers"
+
+# ---------------------------
+# 启动 mihomo 核心(守护循环: 异常退出 2 秒后自动拉起)
 # ---------------------------
 echo "🚀 启动 mihomo..."
-/mihomo &
+(
+    while :; do
+        /mihomo -d "${CONFIG_DIR}"
+        echo "⚠ mihomo 异常退出, 2 秒后重启..."
+        sleep 2
+    done
+) &
 sleep 2
 
 # 等待 mihomo 就绪
@@ -107,9 +152,9 @@ if ! $subc_ready; then
 fi
 
 # ---------------------------
-# 首次订阅更新
+# 首次订阅同步(渲染配置并热重载)
 # ---------------------------
-echo "📡 执行首次订阅更新..."
+echo "📡 执行首次订阅同步..."
 /etc/periodic/15min/sub.sh --now
 
 # ---------------------------

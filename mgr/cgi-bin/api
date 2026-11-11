@@ -1,142 +1,246 @@
 #!/bin/sh
 
 # CGI API - Mihomo 订阅管理后端
+#
+# 鉴权: 所有请求需携带 token 参数(值为挂载目录下 secret 文件的内容,
+#       即 mihomo API secret)。GET 放 query, POST 放 body。
 
 CONFIG_DIR="/root/.config/mihomo"
-SUB_URLS_FILE="${CONFIG_DIR}/sub_urls.txt"
+SUBS_FILE="${CONFIG_DIR}/subs.json"
 SCHEDULE_FILE="${CONFIG_DIR}/schedule.conf"
 LOG_FILE="${CONFIG_DIR}/log.txt"
+SECRET_FILE="${CONFIG_DIR}/secret"
+PROV_DIR="${CONFIG_DIR}/providers"
 SUB_SCRIPT="/etc/periodic/15min/sub.sh"
 
-# 输出 JSON 响应头
+# 允许的刷新间隔档位(秒): 防止设置过频被订阅服务商封禁
+valid_interval() {
+    case "$1" in
+        21600|43200|86400|172800|259200|604800) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
 json_header() {
     printf "Content-Type: application/json; charset=utf-8\r\n\r\n"
 }
 
-# 读取 POST body
-read_body() {
-    if [ "${REQUEST_METHOD}" = "POST" ]; then
-        dd bs=1 count="${CONTENT_LENGTH}" 2>/dev/null
-    fi
+err_out() {
+    # err_out <消息> [状态码]
+    printf "Status: %s\r\n" "${2:-400}"
+    json_header
+    printf '{"error":"%s"}\n' "$1"
+    exit 0
 }
 
-# 获取 action 参数
-action=$(echo "${QUERY_STRING}" | sed -n 's/.*action=\([^&]*\).*/\1/p')
+# ---------------------------
+# 读取 POST body(仅一次)
+# ---------------------------
+BODY=""
+if [ "${REQUEST_METHOD}" = "POST" ] && [ -n "${CONTENT_LENGTH}" ]; then
+    BODY=$(dd bs=1 count="${CONTENT_LENGTH}" 2>/dev/null)
+fi
+
+# ---------------------------
+# 参数提取与解码
+# ---------------------------
+# raw_param <name> <haystack>: 提取 k=v 原始值(未解码)
+# 前置 & 保证第一个参数也能命中
+raw_param() {
+    printf '&%s' "$2" | sed -n "s/.*&$1=\([^&]*\).*/\1/p"
+}
+
+# decode_param <raw>: URL 解码(+ -> 空格, %xx -> 字符)
+decode_param() {
+    raw=$(printf '%s' "$1" | sed 's/+/ /g;s/%/\\x/g')
+    printf "%b" "${raw}"
+}
+
+# post_param <name>: 从 POST body 提取并解码
+post_param() {
+    decode_param "$(raw_param "$1" "${BODY}")"
+}
+
+# ---------------------------
+# action 与鉴权
+# ---------------------------
+action=$(raw_param action "${QUERY_STRING}")
 if [ -z "${action}" ]; then
     action="${QUERY_STRING}"
 fi
 
+SECRET=$(cat "${SECRET_FILE}" 2>/dev/null)
+[ -z "${SECRET}" ] && SECRET="mihomo-sub"
+
+token=$(decode_param "$(raw_param token "${QUERY_STRING}")")
+if [ -z "${token}" ] && [ "${REQUEST_METHOD}" = "POST" ]; then
+    token=$(post_param token)
+fi
+
 json_header
 
+# ---------------------------
+# 鉴权: token 必须等于 secret(auth action 即"用 token 试一下"的探针)
+# ---------------------------
+[ "${token}" = "${SECRET}" ] || err_out "未授权的访问(token 不正确)" 401
+
 case "${action}" in
-    # ---------------------------
-    # 列出订阅
-    # ---------------------------
-    list)
-        printf '{"subscriptions":['
-        first=true
-        if [ -f "${SUB_URLS_FILE}" ]; then
-            while IFS= read -r line || [ -n "${line}" ]; do
-                case "${line}" in
-                    ""|"#"*) continue ;;
-                esac
-                if $first; then
-                    first=false
-                else
-                    printf ','
-                fi
-                # 转义 JSON 特殊字符
-                escaped=$(echo "${line}" | sed 's/\\/\\\\/g; s/"/\\"/g; s/\x09/\\t/g; s/\x0A/\\n/g; s/\x0D/\\r/g')
-                printf '"%s"' "${escaped}"
-            done < "${SUB_URLS_FILE}"
-        fi
-        printf ']}\n'
+    auth)
+        # token 已在上层校验失败时不进入这里; 这里只报告成功
+        printf '{"success":true}\n'
         ;;
 
     # ---------------------------
-    # 添加订阅
+    # 状态概览
+    # ---------------------------
+    status)
+        last_run=""
+        if [ -f "${LOG_FILE}" ]; then
+            last_run=$(sed -n 's/^\[\(.*\)\].*/\1/p' "${LOG_FILE}" | tail -1)
+        fi
+        interval=$(head -1 "${SCHEDULE_FILE}" 2>/dev/null || echo 86400)
+        sub_count=$(jq '.subs | length' "${SUBS_FILE}" 2>/dev/null || echo 0)
+        enabled_count=$(jq '[.subs[] | select(.enabled == true)] | length' "${SUBS_FILE}" 2>/dev/null || echo 0)
+        # 面板深链接(自动携带 hostname/secret, metacubexd 一键登录)
+        host="${HTTP_HOST%%:*}"
+        panel_url="http://${host}:9090/ui/#/setup?hostname=${host}&port=9090&secret=${SECRET}"
+        panel_escaped=$(printf '%s' "${panel_url}" | sed 's/\\/\\\\/g; s/"/\\"/g')
+        last_escaped=$(printf '%s' "${last_run}" | sed 's/\\/\\\\/g; s/"/\\"/g')
+        printf '{"last_run":"%s","interval":%s,"sub_count":%s,"enabled_count":%s,"panel_url":"%s"}\n' \
+            "${last_escaped}" "${interval:-86400}" "${sub_count}" "${enabled_count}" "${panel_escaped}"
+        ;;
+
+    # ---------------------------
+    # 订阅列表
+    # ---------------------------
+    list)
+        jq -c '{"subscriptions": .subs}' "${SUBS_FILE}" 2>/dev/null || printf '{"subscriptions":[]}\n'
+        ;;
+
+    # ---------------------------
+    # 添加订阅(后台异步分类并应用)
     # ---------------------------
     add)
-        body=$(read_body)
-        url=$(echo "${body}" | sed -n 's/.*url=\([^&]*\).*/\1/p' | sed 's/+/ /g;s/%/\\x/g')
-        url=$(printf "%b" "${url}")
-        if [ -z "${url}" ]; then
-            printf '{"error":"URL 不能为空"}\n'
-            exit 0
-        fi
-        # 基本格式验证
+        name=$(post_param name)
+        url=$(post_param url)
+        [ -z "${url}" ] && err_out "URL 不能为空"
         case "${url}" in
             http://*|https://*) ;;
-            *)
-                printf '{"error":"URL 必须以 http:// 或 https:// 开头"}\n'
-                exit 0
-                ;;
+            *) err_out "URL 必须以 http:// 或 https:// 开头" ;;
         esac
-        # 检查重复
-        if [ -f "${SUB_URLS_FILE}" ] && grep -qFx "${url}" "${SUB_URLS_FILE}" 2>/dev/null; then
-            printf '{"error":"该订阅已存在"}\n'
-            exit 0
+        if jq -e --arg u "${url}" '.subs[] | select(.url == $u)' "${SUBS_FILE}" >/dev/null 2>&1; then
+            err_out "该订阅已存在"
         fi
-        echo "${url}" >> "${SUB_URLS_FILE}"
-        printf '{"success":true,"message":"订阅已添加"}\n'
+        # id 递增: 现有最大编号 + 1
+        next=$(jq '[.subs[].id | sub("^p";"") | tonumber] | max // 0' "${SUBS_FILE}" 2>/dev/null || echo 0)
+        next=$((next + 1))
+        new_id="p${next}"
+        [ -z "${name}" ] && name="订阅 ${new_id}"
+        jq --arg id "${new_id}" --arg n "${name}" --arg u "${url}" \
+            '.subs += [{"id":$id,"name":$n,"url":$u,"type":"pending","enabled":true}]' \
+            "${SUBS_FILE}" > "${SUBS_FILE}.tmp" && mv "${SUBS_FILE}.tmp" "${SUBS_FILE}" \
+            || err_out "写入失败"
+        nohup "${SUB_SCRIPT}" --now > /dev/null 2>&1 &
+        printf '{"success":true,"message":"订阅已添加, 正在后台同步","id":"%s"}\n' "${new_id}"
+        ;;
+
+    # ---------------------------
+    # 更新订阅(名称/URL/启用状态)
+    # ---------------------------
+    update)
+        id=$(post_param id)
+        name=$(post_param name)
+        url=$(post_param url)
+        enabled=$(post_param enabled)
+        case "${id}" in
+            p[0-9]*) ;;
+            *) err_out "无效的订阅 id" ;;
+        esac
+        jq -e --arg i "${id}" '.subs[] | select(.id == $i)' "${SUBS_FILE}" >/dev/null 2>&1 \
+            || err_out "订阅不存在"
+        if [ -n "${url}" ]; then
+            case "${url}" in
+                http://*|https://*) ;;
+                *) err_out "URL 必须以 http:// 或 https:// 开头" ;;
+            esac
+        fi
+        case "${enabled}" in
+            ""|true|false) ;;
+            *) err_out "enabled 只能为 true/false" ;;
+        esac
+
+        # 逐项更新(仅覆盖实际提交的字段); URL 变更时回到 pending 重新分类
+        tmp="${SUBS_FILE}.tmp"
+        cp "${SUBS_FILE}" "${tmp}"
+        [ -n "${name}" ] && jq --arg i "${id}" --arg v "${name}" \
+            '.subs = (.subs | map(if .id == $i then .name = $v else . end))' "${tmp}" > "${tmp}.2" && mv "${tmp}.2" "${tmp}"
+        if [ -n "${url}" ]; then
+            jq --arg i "${id}" --arg v "${url}" \
+                '.subs = (.subs | map(if .id == $i then .url = $v | .type = "pending" else . end))' "${tmp}" > "${tmp}.2" && mv "${tmp}.2" "${tmp}"
+        fi
+        if [ -n "${enabled}" ]; then
+            jq --arg i "${id}" --argjson v "${enabled}" \
+                '.subs = (.subs | map(if .id == $i then .enabled = $v else . end))' "${tmp}" > "${tmp}.2" && mv "${tmp}.2" "${tmp}"
+        fi
+        jq -e . "${tmp}" >/dev/null 2>&1 || { rm -f "${tmp}"; err_out "更新失败"; }
+        mv "${tmp}" "${SUBS_FILE}"
+
+        # URL 变更需要重新下载分类; 其余只需重渲染
+        if [ -n "${url}" ]; then
+            nohup "${SUB_SCRIPT}" --now > /dev/null 2>&1 &
+        else
+            nohup "${SUB_SCRIPT}" --render > /dev/null 2>&1 &
+        fi
+        printf '{"success":true,"message":"订阅已更新"}\n'
         ;;
 
     # ---------------------------
     # 删除订阅
     # ---------------------------
     delete)
-        body=$(read_body)
-        url=$(echo "${body}" | sed -n 's/.*url=\([^&]*\).*/\1/p' | sed 's/+/ /g;s/%/\\x/g')
-        url=$(printf "%b" "${url}")
-        if [ -z "${url}" ]; then
-            printf '{"error":"URL 不能为空"}\n'
-            exit 0
-        fi
-        if [ -f "${SUB_URLS_FILE}" ]; then
-            grep -vFx "${url}" "${SUB_URLS_FILE}" > "${SUB_URLS_FILE}.tmp" 2>/dev/null
-            mv "${SUB_URLS_FILE}.tmp" "${SUB_URLS_FILE}"
-        fi
+        id=$(post_param id)
+        case "${id}" in
+            p[0-9]*) ;;
+            *) err_out "无效的订阅 id" ;;
+        esac
+        jq --arg i "${id}" 'del(.subs[] | select(.id == $i))' "${SUBS_FILE}" \
+            > "${SUBS_FILE}.tmp" && mv "${SUBS_FILE}.tmp" "${SUBS_FILE}"
+        rm -f "${PROV_DIR}/${id}.yaml"
+        nohup "${SUB_SCRIPT}" --render > /dev/null 2>&1 &
         printf '{"success":true,"message":"订阅已删除"}\n'
         ;;
 
     # ---------------------------
-    # 手动刷新
+    # 手动刷新(全量同步, 后台执行避免 CGI 超时)
     # ---------------------------
     refresh)
-        # 在后台执行刷新，避免 CGI 超时
         nohup "${SUB_SCRIPT}" --now > /dev/null 2>&1 &
         printf '{"success":true,"message":"刷新已触发"}\n'
         ;;
 
     # ---------------------------
-    # 获取/设置调度
+    # 刷新间隔
     # ---------------------------
     schedule)
         if [ "${REQUEST_METHOD}" = "POST" ]; then
-            body=$(read_body)
-            val=$(echo "${body}" | sed -n 's/.*schedule=\([^&]*\).*/\1/p')
-            case "${val}" in
-                15min|hourly|daily)
-                    echo "${val}" > "${SCHEDULE_FILE}"
-                    printf '{"success":true,"schedule":"%s"}\n' "${val}"
-                    ;;
-                *)
-                    printf '{"error":"无效的调度值，可选: 15min, hourly, daily"}\n'
-                    ;;
-            esac
+            val=$(post_param interval)
+            valid_interval "${val}" || err_out "无效的间隔, 可选: 21600/43200/86400/172800/259200/604800 秒"
+            echo "${val}" > "${SCHEDULE_FILE}"
+            # 立即重渲染, 让 provider 的 interval 生效
+            nohup "${SUB_SCRIPT}" --render > /dev/null 2>&1 &
+            printf '{"success":true,"interval":%s}\n' "${val}"
         else
-            val=$(cat "${SCHEDULE_FILE}" 2>/dev/null || echo "daily")
-            printf '{"schedule":"%s"}\n' "${val}"
+            val=$(head -1 "${SCHEDULE_FILE}" 2>/dev/null || echo 86400)
+            printf '{"interval":%s}\n' "${val}"
         fi
         ;;
 
     # ---------------------------
-    # 获取日志
+    # 日志(最近 100 行)
     # ---------------------------
     logs)
         printf '{"logs":['
         if [ -f "${LOG_FILE}" ]; then
-            # 返回最后 100 行
             lines=$(tail -n 100 "${LOG_FILE}" 2>/dev/null)
             first=true
             while IFS= read -r logline || [ -n "${logline}" ]; do
@@ -155,23 +259,7 @@ EOF
         printf ']}\n'
         ;;
 
-    # ---------------------------
-    # 获取状态
-    # ---------------------------
-    status)
-        last_run=""
-        if [ -f "${LOG_FILE}" ]; then
-            last_run=$(sed -n 's/^\[\(.*\)\].*/\1/p' "${LOG_FILE}" | tail -1)
-        fi
-        schedule=$(cat "${SCHEDULE_FILE}" 2>/dev/null || echo "daily")
-        sub_count=0
-        if [ -f "${SUB_URLS_FILE}" ]; then
-            sub_count=$(grep -cEv '^(#|$)' "${SUB_URLS_FILE}" 2>/dev/null || echo 0)
-        fi
-        printf '{"last_run":"%s","schedule":"%s","sub_count":%d}\n' "${last_run}" "${schedule}" "${sub_count}"
-        ;;
-
     *)
-        printf '{"error":"未知操作: %s"}\n' "${action}"
+        err_out "未知操作: ${action}" 404
         ;;
 esac

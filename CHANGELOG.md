@@ -1,5 +1,29 @@
 # Changelog
 
+## [3.0.0] — 2026-11-11
+
+### 重构：proxy-providers 架构（类客户端形态）
+
+- **Clash 格式订阅直连内核**：不再下载-提取-合并，交给 mihomo 原生 `proxy-providers` 按 interval 自动拉取 + 健康检查，拉取频率精确可控（防机场封禁）
+- **订阅管理升级**：增删改查、启停、重命名、改 URL（subs.json 元数据），全部 Web 页面完成
+- **刷新间隔档位**：6 小时 ~ 每 7 天六档白名单（默认每天），改完立即生效（重新渲染 provider interval）；旧值低于下限自动钳制
+- **API secret 鉴权**：首次启动生成随机 secret；9090 API 与 9091 管理页共用，面板一键登录（setup 深链接）
+- **用户覆写**：`user-merge.yaml` 经 yq 深合并进生成配置，DNS/规则自定义不再被订阅刷新冲掉
+- **内核守护**：mihomo 异常退出 2 秒自动拉起；配置写入前过 `/mihomo -t` 校验，坏覆写不再能搞挂内核
+- **GeoIP/GeoSite 每周自动更新**（geo-auto-update），不再冻结在构建期
+- **默认规则**：GEOSITE/GEOIP 国内直连 + MATCH,PROXY；`PROXY`（手动）/`AUTO`（url-test）双分组；`store-selected` 记住面板选择
+- **旧版自动迁移**：sub_urls.txt → subs.json（保留 .bak），schedule 档位 → 秒
+- **本地测试 harness**：CGI 全 action + 渲染产物断言（`.omc/test/harness.sh`），不依赖 docker
+
+### 修复
+
+- CGI `add` jq 表达式变量名错误（$url 未定义导致添加订阅必然失败）
+- `--render` 模式不再触发订阅下载（纯渲染，零网络请求）
+- sub.sh 循环改输入重定向，子 shell 丢失日志的问题
+- CGI 参数提取支持首参数（action= 在首位时解析失败）
+
+---
+
 ## [2.0.0] — 2026-05-29
 
 ### 新增

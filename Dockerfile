@@ -1,6 +1,6 @@
 FROM metacubex/mihomo:v1.19.25
 
-RUN apk add --no-cache jq curl busybox-extras
+RUN apk add --no-cache jq curl busybox-extras yq
 
 # 安装 metacubexd Web 面板（存到初始化目录，运行时由 init.sh 复制）
 RUN wget -O /tmp/metacubexd.tgz https://github.com/MetaCubeX/metacubexd/releases/download/v1.248.7/compressed-dist.tgz && \

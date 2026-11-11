@@ -38,6 +38,7 @@ h1 {
     align-items: center;
     gap: 8px;
 }
+h1 .spacer { flex: 1; }
 .card {
     background: var(--card);
     border: 1px solid var(--border);
@@ -53,409 +54,545 @@ h1 {
     letter-spacing: 0.5px;
     margin-bottom: 14px;
 }
-.status-row {
-    display: flex;
-    gap: 16px;
-    flex-wrap: wrap;
-}
-.status-item {
-    flex: 1;
-    min-width: 120px;
-}
-.status-label {
-    font-size: 0.75rem;
-    color: var(--text-dim);
-    margin-bottom: 2px;
-}
-.status-value {
-    font-size: 1rem;
-    font-weight: 500;
-}
+
+/* 状态卡 */
+.status-row { display: flex; gap: 16px; flex-wrap: wrap; }
+.status-item { flex: 1; min-width: 120px; }
+.status-label { font-size: 0.75rem; color: var(--text-dim); margin-bottom: 2px; }
+.status-value { font-size: 1rem; font-weight: 500; }
 .status-ok { color: var(--success); }
-.status-warn { color: var(--warning); }
 
-.sub-list { list-style: none; }
-.sub-item {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 10px 0;
-    border-bottom: 1px solid var(--border);
-}
-.sub-item:last-child { border-bottom: none; }
-.sub-url {
-    flex: 1;
-    font-size: 0.85rem;
-    word-break: break-all;
-    color: var(--text);
-    background: var(--bg);
-    padding: 6px 10px;
-    border-radius: var(--radius-sm);
-}
-.sub-del {
-    background: none;
-    border: 1px solid var(--danger);
-    color: var(--danger);
-    padding: 6px 14px;
-    border-radius: var(--radius-sm);
-    cursor: pointer;
-    font-size: 0.8rem;
-    white-space: nowrap;
-    transition: all 0.15s;
-}
-.sub-del:hover {
-    background: var(--danger);
-    color: #fff;
-}
-
-.add-form {
-    display: flex;
-    gap: 8px;
-    margin-top: 12px;
-}
-.add-input {
+/* 登录 */
+#login-card { margin-top: 48px; }
+.login-hint { font-size: 0.8rem; color: var(--text-dim); margin-top: 10px; line-height: 1.6; }
+.login-form { display: flex; gap: 8px; }
+.input {
     flex: 1;
     padding: 10px 14px;
     border: 1px solid var(--border);
     border-radius: var(--radius-sm);
     background: var(--bg);
     color: var(--text);
-    font-size: 0.85rem;
+    font-size: 0.9rem;
     outline: none;
-    transition: border-color 0.15s;
 }
-.add-input:focus { border-color: var(--accent); }
-.add-input::placeholder { color: var(--text-dim); }
+.input:focus { border-color: var(--accent); }
 
+/* 按钮 */
 .btn {
-    padding: 10px 20px;
-    border-radius: var(--radius-sm);
-    font-size: 0.85rem;
-    font-weight: 500;
-    cursor: pointer;
+    background: var(--accent);
     border: none;
-    transition: all 0.15s;
+    color: #fff;
+    padding: 10px 18px;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    font-size: 0.9rem;
+    white-space: nowrap;
+    transition: background 0.15s;
 }
-.btn-primary { background: var(--accent); color: #fff; flex-shrink: 0; }
-.btn-primary:hover { background: var(--accent-hover); }
+.btn:hover { background: var(--accent-hover); }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
 .btn-outline {
     background: none;
-    border: 1px solid var(--accent);
-    color: var(--accent);
-}
-.btn-outline:hover { background: var(--accent); color: #fff; }
-
-.schedule-options { display: flex; gap: 10px; }
-.schedule-opt {
-    flex: 1;
-    text-align: center;
-    padding: 10px;
     border: 1px solid var(--border);
-    border-radius: var(--radius-sm);
+    color: var(--text);
+}
+.btn-outline:hover { border-color: var(--accent); color: var(--accent); background: none; }
+.btn-danger {
+    background: none;
+    border: 1px solid var(--danger);
+    color: var(--danger);
+    padding: 6px 14px;
+    font-size: 0.8rem;
+}
+.btn-danger:hover { background: var(--danger); color: #fff; }
+.btn-sm { padding: 6px 12px; font-size: 0.8rem; }
+
+/* 订阅列表 */
+.sub-item {
+    padding: 12px 0;
+    border-bottom: 1px solid var(--border);
+}
+.sub-item:last-child { border-bottom: none; }
+.sub-head { display: flex; align-items: center; gap: 10px; }
+.sub-name { font-weight: 600; font-size: 0.95rem; word-break: break-all; }
+.badge {
+    font-size: 0.68rem;
+    padding: 2px 8px;
+    border-radius: 10px;
+    white-space: nowrap;
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+}
+.badge.http { color: var(--success); border-color: var(--success); }
+.badge.file { color: var(--warning); border-color: var(--warning); }
+.badge.pending { color: var(--text-dim); }
+.badge.disabled { color: var(--danger); border-color: var(--danger); }
+.sub-url {
+    font-size: 0.78rem;
+    color: var(--text-dim);
+    word-break: break-all;
+    margin-top: 4px;
+    font-family: ui-monospace, Consolas, monospace;
+}
+.sub-actions { margin-left: auto; display: flex; gap: 6px; align-items: center; }
+
+/* 开关 */
+.switch { position: relative; width: 36px; height: 20px; flex-shrink: 0; }
+.switch input { opacity: 0; width: 0; height: 0; }
+.slider {
+    position: absolute; inset: 0;
+    background: var(--border);
+    border-radius: 20px;
+    cursor: pointer;
+    transition: 0.2s;
+}
+.slider:before {
+    content: "";
+    position: absolute;
+    width: 14px; height: 14px;
+    left: 3px; top: 3px;
+    background: var(--text);
+    border-radius: 50%;
+    transition: 0.2s;
+}
+.switch input:checked + .slider { background: var(--accent); }
+.switch input:checked + .slider:before { transform: translateX(16px); }
+
+/* 编辑态 */
+.edit-box { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
+.edit-row { display: flex; gap: 8px; }
+.edit-row .input { font-size: 0.85rem; padding: 8px 12px; }
+
+/* 添加表单 */
+.add-form { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+.add-form .input { min-width: 0; }
+.add-form .input[name=url] { flex: 2 1 240px; }
+.add-form .input[name=name] { flex: 1 1 120px; }
+
+/* 间隔 */
+.interval-row { display: flex; gap: 8px; align-items: center; }
+select.input { appearance: auto; }
+.interval-hint { font-size: 0.75rem; color: var(--text-dim); margin-top: 10px; line-height: 1.6; }
+
+/* 操作 */
+.actions-row { display: flex; gap: 10px; flex-wrap: wrap; }
+
+/* 日志 */
+details.card { padding: 0; overflow: hidden; }
+details.card summary {
+    padding: 14px 20px;
     cursor: pointer;
     font-size: 0.85rem;
-    transition: all 0.15s;
+    font-weight: 600;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    list-style: none;
 }
-.schedule-opt:hover { border-color: var(--accent); }
-.schedule-opt.active {
-    background: var(--accent);
-    border-color: var(--accent);
-    color: #fff;
-}
-
-.action-row { display: flex; gap: 10px; }
-.action-row .btn { flex:1; text-align:center; }
-
-.log-viewer {
-    background: var(--bg);
-    border-radius: var(--radius-sm);
-    padding: 12px;
-    max-height: 280px;
+details.card summary::-webkit-details-marker { display: none; }
+details.card summary:after { content: "▸"; float: right; transition: transform 0.15s; }
+details.card[open] summary:after { transform: rotate(90deg); }
+.log-box {
+    max-height: 320px;
     overflow-y: auto;
-    font-family: "SF Mono", "Fira Code", monospace;
+    padding: 0 20px 16px;
+    font-family: ui-monospace, Consolas, monospace;
     font-size: 0.75rem;
-    line-height: 1.6;
+    line-height: 1.7;
     color: var(--text-dim);
     white-space: pre-wrap;
     word-break: break-all;
 }
 
-.toast {
+/* Toast */
+#toast {
     position: fixed;
-    bottom: 20px;
+    bottom: 24px;
     left: 50%;
-    transform: translateX(-50%);
-    padding: 10px 24px;
+    transform: translateX(-50%) translateY(80px);
+    background: var(--card);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 10px 20px;
     border-radius: var(--radius-sm);
     font-size: 0.85rem;
-    z-index: 999;
-    animation: fadeIn 0.2s;
+    opacity: 0;
+    transition: all 0.25s;
+    z-index: 99;
+    max-width: 90vw;
 }
-.toast-success { background: var(--success); color: #fff; }
-.toast-error { background: var(--danger); color: #fff; }
-@keyframes fadeIn { from {opacity:0; transform:translateX(-50%) translateY(10px);} }
+#toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+#toast.ok { border-color: var(--success); }
+#toast.err { border-color: var(--danger); }
 
-.refreshing, .btn:disabled { opacity: 0.5; pointer-events: none; cursor: not-allowed; }
-.spin {
-    display: inline-block;
-    animation: spin 1s linear infinite;
-}
+.spin { display: inline-block; animation: spin 1s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
-
-.empty-state {
-    text-align: center;
-    padding: 20px;
-    color: var(--text-dim);
-    font-size: 0.85rem;
-}
+.empty-tip { color: var(--text-dim); font-size: 0.85rem; padding: 8px 0; }
 </style>
 </head>
 <body>
 
-<h1>⚡ Mihomo 订阅管理</h1>
+<!-- 登录层 -->
+<div id="login-card" class="card" hidden>
+    <div class="card-title">🔑 管理页登录</div>
+    <div class="login-form">
+        <input class="input" id="tokenInput" type="password" placeholder="访问密码 (secret)">
+        <button class="btn" id="loginBtn">登录</button>
+    </div>
+    <div class="login-hint">
+        密码为容器内 <b>/root/.config/mihomo/secret</b> 文件的内容（首次启动自动生成，可用
+        <code style="color:var(--accent)">docker exec mihomo-sub cat /root/.config/mihomo/secret</code> 查看），
+        与代理面板 metacubexd 的 API secret 相同。
+    </div>
+</div>
 
-<!-- 状态卡片 -->
-<div class="card">
-    <div class="card-title">运行状态</div>
-    <div class="status-row">
-        <div class="status-item">
-            <div class="status-label">最后刷新</div>
-            <div class="status-value" id="lastRun">-</div>
+<div id="app" hidden>
+    <h1>
+        🛡 Mihomo 订阅管理
+        <span class="spacer"></span>
+        <button class="btn btn-outline btn-sm" id="panelBtn">🎛 打开面板</button>
+    </h1>
+
+    <div class="card">
+        <div class="card-title">状态</div>
+        <div class="status-row">
+            <div class="status-item">
+                <div class="status-label">启用订阅</div>
+                <div class="status-value" id="statSubs">-</div>
+            </div>
+            <div class="status-item">
+                <div class="status-label">刷新间隔</div>
+                <div class="status-value" id="statInterval">-</div>
+            </div>
+            <div class="status-item">
+                <div class="status-label">最后刷新</div>
+                <div class="status-value status-ok" id="statLast">-</div>
+            </div>
         </div>
-        <div class="status-item">
-            <div class="status-label">定时调度</div>
-            <div class="status-value" id="scheduleDisplay">-</div>
+    </div>
+
+    <div class="card">
+        <div class="card-title">订阅</div>
+        <div id="subList"></div>
+        <div class="add-form">
+            <input class="input" name="name" id="addName" placeholder="名称 (可选)">
+            <input class="input" name="url" id="addUrl" placeholder="订阅 URL (https://...)">
+            <button class="btn" id="addBtn">添加</button>
         </div>
-        <div class="status-item">
-            <div class="status-label">订阅数量</div>
-            <div class="status-value" id="subCount">0</div>
+    </div>
+
+    <div class="card">
+        <div class="card-title">刷新间隔</div>
+        <div class="interval-row">
+            <select class="input" id="intervalSelect">
+                <option value="21600">6 小时</option>
+                <option value="43200">12 小时</option>
+                <option value="86400" selected>每天</option>
+                <option value="172800">每 2 天</option>
+                <option value="259200">每 3 天</option>
+                <option value="604800">每 7 天</option>
+            </select>
+            <button class="btn btn-sm" id="saveIntervalBtn">保存</button>
+        </div>
+        <div class="interval-hint">
+            Clash 格式订阅由 mihomo 内核按此间隔自动拉取；其他格式订阅由容器定时任务转换。
+            间隔过短可能被订阅服务商限流或封禁，档位下限为 6 小时（默认每天）。
         </div>
     </div>
-</div>
 
-<!-- 订阅列表卡片 -->
-<div class="card" id="subCard">
-    <div class="card-title">订阅列表</div>
-    <ul class="sub-list" id="subList"></ul>
-    <div class="add-form">
-        <input class="add-input" id="subInput" placeholder="输入订阅 URL（http:// 或 https://）" autocomplete="off">
-        <button class="btn btn-primary" onclick="addSub()">＋ 添加</button>
+    <div class="card">
+        <div class="card-title">操作</div>
+        <div class="actions-row">
+            <button class="btn" id="refreshBtn">🔄 立即刷新</button>
+            <button class="btn btn-outline" id="reloadBtn">↻ 刷新页面数据</button>
+        </div>
     </div>
+
+    <details class="card">
+        <summary>日志</summary>
+        <div class="log-box" id="logBox">暂无日志</div>
+    </details>
 </div>
 
-<!-- 调度设置卡片 -->
-<div class="card">
-    <div class="card-title">定时刷新</div>
-    <div class="schedule-options" id="scheduleOpts">
-        <div class="schedule-opt" data-val="15min" onclick="setSchedule('15min')">每 15 分钟</div>
-        <div class="schedule-opt" data-val="hourly" onclick="setSchedule('hourly')">每小时</div>
-        <div class="schedule-opt" data-val="daily" onclick="setSchedule('daily')">每天</div>
-    </div>
-</div>
-
-<!-- 操作按钮 -->
-<div class="card">
-    <div class="action-row">
-        <button class="btn btn-primary" id="refreshBtn" onclick="doRefresh()">
-            <span id="refreshIcon">🔄</span><span class="btn-text"> 立即刷新</span>
-        </button>
-        <button class="btn btn-outline" onclick="openPanel()">📊 打开面板</button>
-    </div>
-</div>
-
-<!-- 日志卡片 -->
-<div class="card">
-    <div class="card-title">最近日志</div>
-    <div class="log-viewer" id="logViewer">加载中...</div>
-</div>
+<div id="toast"></div>
 
 <script>
 const API = '/cgi-bin/api';
-
-async function api(action, method, body) {
-    let url = API + '?action=' + action;
-    let opts = { method: method || 'GET' };
-    if (body) {
-        opts.method = 'POST';
-        opts.headers = { 'Content-Type': 'application/x-www-form-urlencoded' };
-        opts.body = body;
-    }
-    try {
-        let res = await fetch(url, opts);
-        return await res.json();
-    } catch(e) {
-        return { error: '网络请求失败: ' + e.message };
-    }
-}
-
-function toast(msg, ok) {
-    let t = document.createElement('div');
-    t.className = 'toast ' + (ok ? 'toast-success' : 'toast-error');
-    t.textContent = msg;
-    document.body.appendChild(t);
-    setTimeout(() => t.remove(), 2500);
-}
-
-// 加载状态
-async function loadStatus() {
-    let s = await api('status');
-    document.getElementById('lastRun').textContent = s.last_run || '无记录';
-    document.getElementById('subCount').textContent = s.sub_count || 0;
-    let schMap = { '15min': '每 15 分钟', 'hourly': '每小时', 'daily': '每天' };
-    document.getElementById('scheduleDisplay').textContent = schMap[s.schedule] || s.schedule || '-';
-}
-
-// 加载订阅列表
-async function loadSubs() {
-    let data = await api('list');
-    let list = document.getElementById('subList');
-    list.innerHTML = '';
-    if (!data.subscriptions || data.subscriptions.length === 0) {
-        list.innerHTML = '<div class="empty-state">暂无订阅，请在上方添加</div>';
-        return;
-    }
-    data.subscriptions.forEach(url => {
-        let li = document.createElement('li');
-        li.className = 'sub-item';
-        li.innerHTML =
-            '<span class="sub-url">' + escHtml(url) + '</span>' +
-            '<button class="sub-del" onclick="delSub(this)">删除</button>';
-        li.querySelector('.sub-del').dataset.url = url;
-        list.appendChild(li);
-    });
-    loadStatus();
-}
+const INTERVAL_LABELS = {
+    21600: '6 小时', 43200: '12 小时', 86400: '每天',
+    172800: '每 2 天', 259200: '每 3 天', 604800: '每 7 天'
+};
+let token = sessionStorage.getItem('ms_token') || '';
+let panelUrl = '';
+let editingId = null;
 
 function escHtml(s) {
-    let d = document.createElement('div');
-    d.textContent = s;
-    return d.innerHTML;
+    return String(s ?? '').replace(/[&<>"']/g,
+        c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
 
-// 添加订阅
+function toast(msg, ok = true) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.className = 'show ' + (ok ? 'ok' : 'err');
+    clearTimeout(t._timer);
+    t._timer = setTimeout(() => t.className = '', 2600);
+}
+
+function formEncode(obj) {
+    return Object.entries(obj)
+        .filter(([, v]) => v !== undefined && v !== null)
+        .map(([k, v]) => `${k}=${encodeURIComponent(v)}`)
+        .join('&');
+}
+
+async function api(action, { method = 'GET', params = {}, body = null } = {}) {
+    const query = formEncode({ action, token, ...params });
+    const opts = { method };
+    if (body) {
+        opts.headers = { 'Content-Type': 'application/x-www-form-urlencoded' };
+        opts.body = formEncode({ ...body, token });
+    }
+    const res = await fetch(`${API}?${query}`, opts);
+    if (res.status === 401) {
+        showLogin();
+        throw new Error('未授权');
+    }
+    const text = await res.text();
+    try { return JSON.parse(text); }
+    catch { throw new Error(`响应解析失败: ${text.slice(0, 120)}`); }
+}
+
+function showLogin() {
+    document.getElementById('login-card').hidden = false;
+    document.getElementById('app').hidden = true;
+}
+
+function showApp() {
+    document.getElementById('login-card').hidden = true;
+    document.getElementById('app').hidden = false;
+    loadAll();
+}
+
+async function tryLogin(t) {
+    const saved = token;
+    token = t;
+    try {
+        await api('auth');
+        sessionStorage.setItem('ms_token', t);
+        showApp();
+        toast('登录成功');
+    } catch (e) {
+        token = saved;
+        if (e.message !== '未授权') toast(e.message, false);
+        else toast('密码不正确', false);
+        return false;
+    }
+}
+
+async function loadStatus() {
+    try {
+        const d = await api('status');
+        document.getElementById('statSubs').textContent =
+            `${d.enabled_count} / ${d.sub_count}`;
+        document.getElementById('statInterval').textContent =
+            INTERVAL_LABELS[d.interval] || `${d.interval} 秒`;
+        document.getElementById('statLast').textContent = d.last_run || '从未';
+        if (d.panel_url) {
+            panelUrl = d.panel_url;
+            document.getElementById('panelBtn').disabled = false;
+        }
+        const sel = document.getElementById('intervalSelect');
+        if (sel && d.interval && !sel._dirty) sel.value = String(d.interval);
+    } catch (e) { if (e.message !== '未授权') toast(e.message, false); }
+}
+
+function typeBadge(t, enabled) {
+    if (!enabled) return '<span class="badge disabled">已禁用</span>';
+    if (t === 'http') return '<span class="badge http">Clash 直连</span>';
+    if (t === 'file') return '<span class="badge file">自动转换</span>';
+    return '<span class="badge pending">待检测</span>';
+}
+
+async function loadSubs() {
+    const box = document.getElementById('subList');
+    try {
+        const d = await api('list');
+        if (!d.subscriptions || d.subscriptions.length === 0) {
+            box.innerHTML = '<div class="empty-tip">还没有订阅，请在下方添加</div>';
+            return;
+        }
+        box.innerHTML = d.subscriptions.map(renderSub).join('');
+        bindSubEvents();
+    } catch (e) { if (e.message !== '未授权') toast(e.message, false); }
+}
+
+function renderSub(s) {
+    if (editingId === s.id) {
+        return `
+        <div class="sub-item" data-id="${escHtml(s.id)}">
+            <div class="sub-head">
+                <span class="sub-name">编辑订阅</span>
+            </div>
+            <div class="edit-box">
+                <div class="edit-row">
+                    <input class="input" id="editName" value="${escHtml(s.name)}" placeholder="名称">
+                </div>
+                <div class="edit-row">
+                    <input class="input" id="editUrl" value="${escHtml(s.url)}" placeholder="订阅 URL">
+                </div>
+                <div class="edit-row">
+                    <button class="btn btn-sm" data-act="save">保存</button>
+                    <button class="btn btn-outline btn-sm" data-act="cancel">取消</button>
+                </div>
+            </div>
+        </div>`;
+    }
+    return `
+    <div class="sub-item" data-id="${escHtml(s.id)}">
+        <div class="sub-head">
+            <label class="switch">
+                <input type="checkbox" data-act="toggle" ${s.enabled ? 'checked' : ''}>
+                <span class="slider"></span>
+            </label>
+            <span class="sub-name">${escHtml(s.name)}</span>
+            ${typeBadge(s.type, s.enabled)}
+            <span class="sub-actions">
+                <button class="btn btn-outline btn-sm" data-act="edit">编辑</button>
+                <button class="btn-danger" data-act="del">删除</button>
+            </span>
+        </div>
+        <div class="sub-url">${escHtml(s.url)}</div>
+    </div>`;
+}
+
+function bindSubEvents() {
+    document.querySelectorAll('.sub-item').forEach(item => {
+        const id = item.dataset.id;
+        item.querySelectorAll('[data-act]').forEach(el => {
+            el.onclick = () => subAction(el.dataset.act, id, el);
+        });
+    });
+}
+
+async function subAction(act, id, el) {
+    if (act === 'toggle') {
+        const enabled = el.checked;
+        try {
+            await api('update', { method: 'POST', body: { id, enabled: String(enabled) } });
+            toast(enabled ? '已启用' : '已禁用');
+            loadStatus();
+        } catch (e) { if (e.message !== '未授权') toast(e.message, false); loadSubs(); }
+    } else if (act === 'edit') {
+        editingId = id;
+        loadSubs();
+    } else if (act === 'cancel') {
+        editingId = null;
+        loadSubs();
+    } else if (act === 'save') {
+        const name = document.getElementById('editName').value.trim();
+        const url = document.getElementById('editUrl').value.trim();
+        try {
+            await api('update', { method: 'POST', body: { id, name, url } });
+            editingId = null;
+            toast('订阅已更新, 后台同步中');
+            loadSubs(); loadStatus();
+        } catch (e) { if (e.message !== '未授权') toast(e.message, false); }
+    } else if (act === 'del') {
+        if (!confirm('确定删除该订阅?')) return;
+        try {
+            await api('delete', { method: 'POST', body: { id } });
+            toast('订阅已删除');
+            loadSubs(); loadStatus();
+        } catch (e) { if (e.message !== '未授权') toast(e.message, false); }
+    }
+}
+
 async function addSub() {
-    let input = document.getElementById('subInput');
-    let url = input.value.trim();
-    if (!url) { toast('请输入 URL', false); return; }
-    let r = await api('add', 'POST', 'url=' + encodeURIComponent(url));
-    if (r.error) { toast(r.error, false); return; }
-    toast('订阅已添加', true);
-    input.value = '';
-    loadSubs();
-}
-
-// 删除订阅
-async function delSub(btn) {
-    let url = btn.dataset.url;
-    let r = await api('delete', 'POST', 'url=' + encodeURIComponent(url));
-    if (r.error) { toast(r.error, false); return; }
-    toast('订阅已删除', true);
-    loadSubs();
-}
-
-// 设置调度
-async function setSchedule(val) {
-    let r = await api('schedule', 'POST', 'schedule=' + val);
-    if (r.error) { toast(r.error, false); return; }
-    let schMap = { '15min': '每 15 分钟', 'hourly': '每小时', 'daily': '每天' };
-    document.getElementById('scheduleDisplay').textContent = schMap[val];
-    // 更新选中状态
-    document.querySelectorAll('.schedule-opt').forEach(el => {
-        el.classList.toggle('active', el.dataset.val === val);
-    });
-    toast('调度已更新', true);
-}
-
-let refreshTimer = null;
-
-// 手动刷新
-async function doRefresh() {
-    let btn = document.getElementById('refreshBtn');
-    let icon = document.getElementById('refreshIcon');
-    if (btn.disabled) return;
-
+    const nameEl = document.getElementById('addName');
+    const urlEl = document.getElementById('addUrl');
+    const url = urlEl.value.trim();
+    if (!url) { toast('请输入订阅 URL', false); return; }
+    const btn = document.getElementById('addBtn');
     btn.disabled = true;
-    btn.classList.add('refreshing');
-    icon.classList.add('spin');
-    btn.querySelector('.btn-text').textContent = ' 刷新中...';
-
-    let r = await api('refresh');
-    if (r.error) {
-        toast(r.error, false);
-        btn.disabled = false;
-        btn.classList.remove('refreshing');
-        icon.classList.remove('spin');
-        btn.querySelector('.btn-text').textContent = ' 立即刷新';
-        return;
-    }
-    toast('刷新已触发，请稍后查看日志', true);
-    // 轮询等待刷新完成，最多 60 秒
-    let tries = 0;
-    let poller = setInterval(async () => {
-        tries++;
-        await loadLogs();
-        await loadStatus();
-        if (tries >= 60) {
-            clearInterval(poller);
-            finishRefresh(btn, icon);
-        }
-    }, 1000);
+    try {
+        await api('add', { method: 'POST', body: { name: nameEl.value.trim(), url } });
+        nameEl.value = ''; urlEl.value = '';
+        toast('订阅已添加, 正在后台同步');
+        setTimeout(loadAll, 3000);
+    } catch (e) { if (e.message !== '未授权') toast(e.message, false); }
+    btn.disabled = false;
 }
 
-function finishRefresh(btn, icon) {
-    btn.classList.remove('refreshing');
-    icon.classList.remove('spin');
-    btn.querySelector('.btn-text').textContent = ' 刷新完成';
-    toast('刷新完成', true);
-    // 30 秒冷却
-    let cd = 30;
-    let timer = setInterval(() => {
-        cd--;
-        btn.querySelector('.btn-text').textContent = ' ' + cd + 's 后可刷新';
-        if (cd <= 0) {
-            clearInterval(timer);
-            btn.disabled = false;
-            btn.querySelector('.btn-text').textContent = ' 立即刷新';
-        }
-    }, 1000);
-}
-
-// 打开面板
-function openPanel() {
-    window.open('//' + window.location.hostname + ':9090/ui', '_blank');
-}
-
-// 加载日志
 async function loadLogs() {
-    let data = await api('logs');
-    let viewer = document.getElementById('logViewer');
-    if (!data.logs || data.logs.length === 0) {
-        viewer.textContent = '暂无日志';
-        return;
-    }
-    viewer.textContent = data.logs.join('\n');
-    viewer.scrollTop = viewer.scrollHeight;
+    try {
+        const d = await api('logs');
+        const box = document.getElementById('logBox');
+        box.textContent = (d.logs && d.logs.length)
+            ? d.logs.join('\n') : '暂无日志';
+        box.scrollTop = box.scrollHeight;
+    } catch (e) { /* 静默 */ }
 }
 
-// 加载当前调度选中状态
-async function loadSchedule() {
-    let data = await api('schedule');
-    let cur = data.schedule || 'daily';
-    document.querySelectorAll('.schedule-opt').forEach(el => {
-        el.classList.toggle('active', el.dataset.val === cur);
-    });
+async function doRefresh() {
+    const btn = document.getElementById('refreshBtn');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spin">🔄</span> 刷新中...';
+    try {
+        await api('refresh');
+        toast('刷新已触发, 几秒后自动更新状态');
+        setTimeout(loadAll, 4000);
+        setTimeout(loadAll, 10000);
+    } catch (e) { if (e.message !== '未授权') toast(e.message, false); }
+    btn.disabled = false;
+    btn.innerHTML = '🔄 立即刷新';
 }
 
-// 回车添加订阅
-document.getElementById('subInput').addEventListener('keydown', function(e) {
-    if (e.key === 'Enter') addSub();
+async function saveInterval() {
+    const sel = document.getElementById('intervalSelect');
+    const btn = document.getElementById('saveIntervalBtn');
+    btn.disabled = true;
+    try {
+        await api('schedule', { method: 'POST', params: {}, body: { interval: sel.value } });
+        toast('刷新间隔已保存');
+        loadStatus();
+    } catch (e) { if (e.message !== '未授权') toast(e.message, false); }
+    btn.disabled = false;
+}
+
+function loadAll() {
+    loadStatus();
+    loadSubs();
+    loadLogs();
+}
+
+/* 事件绑定 */
+document.getElementById('loginBtn').onclick = () => {
+    const t = document.getElementById('tokenInput').value.trim();
+    if (t) tryLogin(t);
+};
+document.getElementById('tokenInput').addEventListener('keydown', e => {
+    if (e.key === 'Enter') document.getElementById('loginBtn').click();
 });
+document.getElementById('addBtn').onclick = addSub;
+document.getElementById('refreshBtn').onclick = doRefresh;
+document.getElementById('reloadBtn').onclick = loadAll;
+document.getElementById('saveIntervalBtn').onclick = saveInterval;
+document.getElementById('intervalSelect').onchange = () => {
+    document.getElementById('intervalSelect')._dirty = true;
+};
+document.getElementById('panelBtn').onclick = () => {
+    if (panelUrl) window.open(panelUrl, '_blank');
+};
 
-// 初始加载
-loadStatus();
-loadSubs();
-loadLogs();
-loadSchedule();
+/* 启动: 有缓存 token 则静默登录, 失败(401)回落登录层 */
+if (token) {
+    tryLogin(token);
+} else {
+    showLogin();
+    document.getElementById('tokenInput').focus();
+}
 </script>
 </body>
 </html>
