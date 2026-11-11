@@ -7,6 +7,15 @@ on:
     branches: [ "main" ]
   workflow_dispatch:
 
+# 收紧默认 token 权限(只需读仓库内容)
+permissions:
+  contents: read
+
+# 同一分支快速连续 push 时取消排队中的旧构建
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -18,17 +27,16 @@ jobs:
         fetch-tags: true
 
     - name: Set IMAGE_TAG
-      id: tag
       run: |
         SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
         BUILD_DATE=$(date +%Y%m%d)
-        if git describe --tags --exact-match HEAD 2>/dev/null; then
-          GIT_TAG=$(git describe --tags --exact-match HEAD)
+        GIT_TAG=$(git describe --tags --exact-match HEAD 2>/dev/null || true)
+        if [ -n "${GIT_TAG}" ]; then
           IMAGE_TAG="${GIT_TAG}"
         else
           IMAGE_TAG="${BUILD_DATE}-${SHORT_SHA}"
         fi
-        echo "IMAGE_TAG=${IMAGE_TAG}" >> $GITHUB_ENV
+        echo "IMAGE_TAG=${IMAGE_TAG}" >> "$GITHUB_ENV"
         echo "构建标签: ${IMAGE_TAG}"
 
     - name: Set up QEMU
@@ -37,7 +45,7 @@ jobs:
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
 
-    # PR 仅构建验证，不推送
+    # PR 仅构建验证(仅 amd64, 复用 main 分支缓存加速), 不推送
     - name: Build (PR check only)
       if: github.event_name == 'pull_request'
       uses: docker/build-push-action@v6
@@ -45,8 +53,9 @@ jobs:
         context: .
         platforms: linux/amd64
         push: false
+        cache-from: type=gha
 
-    # push/main 分支：登录并推送多架构镜像
+    # push/main 与手动触发: 登录并推送多架构镜像
     - name: Log in to Docker Hub
       if: github.event_name != 'pull_request'
       uses: docker/login-action@v3
@@ -67,13 +76,19 @@ jobs:
         cache-from: type=gha
         cache-to: type=gha,mode=max
 
+    # 同步 README 到 Docker Hub(secrets 经 env 传递, JSON 用 jq 构造,
+    # 避免密码含 $ 或 " 时被 shell 展开而登录失败)
     - name: Sync README to Docker Hub
       if: github.event_name != 'pull_request'
+      env:
+        DOCKER_USER: ${{ secrets.DOCKER_HUB_USERNAME }}
+        DOCKER_PASS: ${{ secrets.DOCKER_HUB_PASSWORD }}
       run: |
+        LOGIN_JSON=$(jq -n --arg u "$DOCKER_USER" --arg p "$DOCKER_PASS" '{username:$u,password:$p}')
         TOKEN=$(curl -s -X POST https://hub.docker.com/v2/users/login/ \
           -H "Content-Type: application/json" \
-          -d "{\"username\":\"${{ secrets.DOCKER_HUB_USERNAME }}\",\"password\":\"${{ secrets.DOCKER_HUB_PASSWORD }}\"}" | jq -r .token)
-        if [ -z "${TOKEN}" ] || [ "${TOKEN}" = "null" ]; then
+          -d "$LOGIN_JSON" | jq -r '.token // empty')
+        if [ -z "${TOKEN}" ]; then
           echo "Docker Hub 登录失败，跳过 README 同步"
           exit 0
         fi
