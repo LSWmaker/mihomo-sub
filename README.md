@@ -183,6 +183,10 @@ docker exec mihomo-sub cat /root/.config/mihomo/secret
 
 更新源走 jsdelivr 镜像，偶发失败无害——内核自动回退使用内置版本，下次周期会重试。
 
+**Q: 测延迟全部失败 / 节点全部超时？**
+
+部分机场会把节点域名伪装成国内域名（如 `cdn.jiandaoyun.com`），真实服务器 IP 只有通过机场下发的私有 DoH 才能解析。本项目会自动从订阅的完整配置中提取 `dns.proxy-server-nameserver`、`dns.proxy-server-nameserver-policy`、`dns.nameserver-policy` 三个字段并合并进生成的配置（多个机场的域名策略并存），无需手动处理。如果机场更换了 DNS 设置，执行一次 `docker exec mihomo-sub /etc/periodic/15min/sub.sh --now` 重新提取。若你在 `user-merge.yaml` 里自定义了 `dns`，以你的配置为准（优先级最高）。
+
 ## 源码和仓库
 
 - 源码: `https://github.com/LSWmaker/mihomo-sub`

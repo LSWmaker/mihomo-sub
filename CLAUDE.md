@@ -48,7 +48,7 @@ Docker 化的 mihomo（clash meta）代理方案：类客户端（Clash Verge �
 
 ```
 锁(/tmp/mihomo_sub.lock, 防并发) → check_schedule（cron 模式按 interval 节流）
-  ├─ --now / cron 模式: pending 订阅分类下载(含 ^proxies: 判定)；file 类重新转换
+  ├─ --now / cron 模式: pending 订阅分类下载(含 ^proxies: 判定；完整配置自动提取 provider DNS)
   ├─ --render 模式: 纯渲染，零网络请求（增删/改名/改间隔后 CGI 调用）
   → render_config: 模板 + providers 段 → .base.yaml → yq 深合并 user-merge.yaml
   → apply_config: /mihomo -t 语法校验 → cmp 相同跳过 → PUT :9090/configs 热重载
@@ -87,6 +87,7 @@ Docker 化的 mihomo（clash meta）代理方案：类客户端（Clash Verge �
 | `secret` | init.sh | API/管理页密码（首次随机生成 32 hex） |
 | `user-merge.yaml` | 用户 | 配置覆写，yq 深合并进生成配置 |
 | `providers/` | sub.sh | 订阅缓存/转换产物（<id>.yaml） |
+| `providers/<id>.dns.yaml` | sub.sh | 从机场完整配置提取的节点解析 DNS 片段（自动合并进渲染配置） |
 | `user_agent.txt` | 手动创建 | 拉取订阅的 UA，默认 `clash-verge/v2.5.1` |
 | `geoip.metadb` / `geosite.dat` | Dockerfile/init.sh | 预下载 + 内核每周 auto-update |
 | `config.yaml` | sub.sh | 渲染产物（模板+providers+user-merge），勿手改 |
@@ -114,7 +115,8 @@ sh test/harness.sh    # CGI 全 action + render 产物 + YAML 结构断言，无
 - **`printf '%s'` 不用 `%b`（配置内容）** — 渲染全部 `%s`，防订阅数据字面量 `\n` 被转义；仅日志写盘用 `%b`
 - **while 循环必须用输入重定向而非管道** — sub.sh 的循环体在子 shell 中会丢 `log` 变量追加（BusyBox ash 管道 fork）
 - **URL/YAML 字符串安全** — 写入 YAML 的 URL/UA/secret 一律经 `jq -rn --arg … '$x|@json'` 输出 JSON 字符串
-- **subconverter 的 `ua` 参数不生效** — fork 始终用 curl UA，sub.sh 自己 curl 直下再判断格式
+- **非 Clash 订阅转换传本地文件** — sub.sh 直下的内容以本地路径传给 subconverter（fork 支持 `fileExist → ConfType::Local`），不再二次下载；fork 的 `ua` 参数无效（下载 UA 取自调用方 curl 默认 UA），不可依赖
+- **机场私有 DNS 自动提取** — 完整配置里的 `proxy-server-nameserver` / `proxy-server-nameserver-policy` / `nameserver-policy` 提取到 `providers/<id>.dns.yaml`，渲染时多机场按域名/列表合并（对齐 Clash Verge 的 `PROVIDER_DNS_FIELDS`）；`user-merge.yaml` 的 `dns` 优先级最高
 - **手动 `--now` 会重置 `last_run`** — 定时刷新被推迟一个完整周期（设计使然，防封）
 - **`--render` 模式零网络请求** — 仅重渲染+热重载，供增删改名/改间隔后调用
 - **config.yaml 是渲染产物** — 用户自定义一律走 `user-merge.yaml`；yq 缺席或合并失败自动回退 base 配置

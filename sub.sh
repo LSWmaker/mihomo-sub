@@ -138,12 +138,19 @@ classify_sub() {
     cid="$1"; curl_url="$2"
     raw="${TEMP_DIR}/${cid}.raw"
     curl_exit=0
-    curl -s --max-time 30 -H "User-Agent: ${SUB_UA}" -o "${raw}" "${curl_url}" || curl_exit=$?
+    http_code=$(curl -sL --max-time 30 -w "%{http_code}" -H "User-Agent: ${SUB_UA}" -o "${raw}" "${curl_url}" 2>/dev/null) || curl_exit=$?
 
     if [ "${curl_exit}" -ne 0 ] || [ ! -s "${raw}" ]; then
-        log="${log}Error: 订阅 ${cid} 下载失败\n\t"
+        log="${log}Error: 订阅 ${cid} 下载失败(退出码 ${curl_exit})\n\t"
         return 1
     fi
+    case "${http_code}" in
+        2*) ;;
+        *)
+            log="${log}Error: 订阅 ${cid} 下载失败(HTTP ${http_code})\n\t"
+            return 1
+            ;;
+    esac
 
     if grep -qE '^proxies:' "${raw}" 2>/dev/null; then
         # 已是 Clash 格式: 直接作为 http provider(内核按 interval 自动更新)
@@ -151,11 +158,12 @@ classify_sub() {
         new_type="http"
         log="${log}订阅 ${cid} 为 Clash 格式, 交给内核自动更新\n\t"
     else
-        # 非 Clash 格式: subconverter 转换为本地文件
-        encoded_sub_url=$(jq -rn --arg x "${curl_url}" '$x|@uri' 2>/dev/null)
-        encoded_ua=$(jq -rn --arg x "${SUB_UA}" '$x|@uri' 2>/dev/null)
+        # 非 Clash 格式: 把已直下的内容以本地文件路径交给 subconverter 解析。
+        # 不传原始 URL 让 subconverter 二次下载(fork 的 ua 参数无效, 下载会退回
+        # curl 默认 UA, 易被机场按 UA 拒绝 403); fileExist -> ConfType::Local
+        encoded_raw=$(jq -rn --arg x "${raw}" '$x|@uri' 2>/dev/null)
         http_code=$(curl -s --max-time 30 -w "%{http_code}" -o "${PROV_DIR}/${cid}.yaml" \
-            "http://127.0.0.1:25500/sub?target=clash&url=${encoded_sub_url}&ua=${encoded_ua}")
+            "http://127.0.0.1:25500/sub?target=clash&url=${encoded_raw}")
         if [ "${http_code}" != "200" ] || ! grep -qE '^proxies:' "${PROV_DIR}/${cid}.yaml" 2>/dev/null; then
             log="${log}Error: 订阅 ${cid} 转换失败(响应码 ${http_code})\n\t"
             rm -f "${PROV_DIR}/${cid}.yaml"
@@ -169,7 +177,45 @@ classify_sub() {
         'if (.subs[] | select(.id == $id) | .type) != $t then
             .subs = (.subs | map(if .id == $id then .type = $t else . end))
         else . end' "${SUBS_FILE}" > "${SUBS_FILE}.tmp" && mv "${SUBS_FILE}.tmp" "${SUBS_FILE}"
+    extract_provider_dns "${raw}" "${cid}"
     return 0
+}
+
+# ---------------------------
+# 提取完整配置中的 provider DNS 字段:
+#   机场常用私有 DoH 解析伪装后的节点域名(nameserver-policy), 或指定
+#   proxy-server-nameserver。这些字段只存在于机场下发的完整 Clash
+#   配置中, 而项目只把订阅当 proxy-provider 使用, 不提取就会退回
+#   容器系统 DNS, 导致节点全部连不上。只提取与「节点服务器解析」
+#   相关的三个字段(对齐 Clash Verge 的 PROVIDER_DNS_FIELDS),
+#   不接管通用 DNS 行为。
+# ---------------------------
+extract_provider_dns() {
+    src="$1"; cid="$2"
+    part=$(yq '(.dns // {}) as $d | {
+        "proxy-server-nameserver": $d."proxy-server-nameserver",
+        "proxy-server-nameserver-policy": $d."proxy-server-nameserver-policy",
+        "nameserver-policy": $d."nameserver-policy"
+    } | with_entries(select(.value != null))' "${src}" 2>/dev/null)
+    case "${part}" in
+        ""|"{}"|"null")
+            rm -f "${PROV_DIR}/${cid}.dns.yaml"
+            ;;
+        *)
+            printf '%s\n' "${part}" > "${PROV_DIR}/${cid}.dns.yaml"
+            ;;
+    esac
+}
+
+# http 类订阅由内核自管, 脚本不保存其内容; 手动同步(--now)时补拉一次,
+# 只为提取 provider DNS(升级前的存量订阅不会重新分类)
+extract_dns_only() {
+    cid="$1"; curl_url="$2"
+    raw="${TEMP_DIR}/${cid}.dns.raw"
+    http_code=$(curl -sL --max-time 30 -w "%{http_code}" -H "User-Agent: ${SUB_UA}" -o "${raw}" "${curl_url}" 2>/dev/null) || return 0
+    case "${http_code}" in
+        2*) extract_provider_dns "${raw}" "${cid}" ;;
+    esac
 }
 
 # ---------------------------
@@ -182,6 +228,38 @@ render_config() {
     # 只取可用订阅: pending(未分类, 无数据源)不渲染, 防止 mihomo 启动失败
     jq -c '.subs[] | select(.enabled == true) | select(.type == "http" or .type == "file")' \
         "${SUBS_FILE}" 2>/dev/null > "${enabled_jsonl}"
+
+    # 汇总已启用订阅提取到的 provider DNS 片段(见 extract_provider_dns):
+    #   nameserver-policy / proxy-server-nameserver-policy 按 map 合并
+    #   proxy-server-nameserver 按数组拼接去重
+    dns_jsonl="${TEMP_DIR}/dns.jsonl"
+    : > "${dns_jsonl}"
+    while IFS= read -r sub; do
+        cid=$(printf '%s' "${sub}" | jq -r '.id')
+        if [ -f "${PROV_DIR}/${cid}.dns.yaml" ]; then
+            yq -o=json '.' "${PROV_DIR}/${cid}.dns.yaml" >> "${dns_jsonl}" 2>/dev/null || true
+        fi
+    done < "${enabled_jsonl}"
+
+    dns_yaml=""
+    if [ -s "${dns_jsonl}" ]; then
+        dns_json=$(jq -s '
+            reduce .[] as $d ({
+                "proxy-server-nameserver": [],
+                "proxy-server-nameserver-policy": {},
+                "nameserver-policy": {}
+            };
+                .["proxy-server-nameserver"] += ($d["proxy-server-nameserver"] // []) |
+                .["proxy-server-nameserver-policy"] += ($d["proxy-server-nameserver-policy"] // {}) |
+                .["nameserver-policy"] += ($d["nameserver-policy"] // {})
+            )
+            | .["proxy-server-nameserver"] |= unique
+            | with_entries(select(.value != [] and .value != {}))
+        ' "${dns_jsonl}" 2>/dev/null)
+        if [ -n "${dns_json}" ] && [ "${dns_json}" != "{}" ] && [ "${dns_json}" != "null" ]; then
+            dns_yaml=$(printf '%s' "${dns_json}" | yq -P '.' 2>/dev/null)
+        fi
+    fi
 
     ua_json=$(jq -rn --arg x "${SUB_UA}" '$x|@json')
 
@@ -228,6 +306,15 @@ render_config() {
         printf 'external-ui: /root/.config/mihomo/ui\n'
         printf 'secret: %s\n' "$(jq -rn --arg x "${SECRET}" '$x|@json')"
         printf 'log-level: info\n'
+        # 机场下发的 provider DNS 字段(解析节点服务器专用), 需显式启用 DNS 才生效
+        if [ -n "${dns_yaml}" ]; then
+            printf 'dns:\n'
+            printf '  enable: true\n'
+            printf '  nameserver:\n'
+            printf '    - https://223.5.5.5/dns-query\n'
+            printf '    - https://doh.pub/dns-query\n'
+            printf '%s\n' "${dns_yaml}" | sed 's/^/  /'
+        fi
         printf 'profile:\n'
         printf '  store-selected: true\n'
         printf 'geo-auto-update: true\n'
@@ -353,6 +440,9 @@ if [ "${MODE}" != "render" ]; then
         elif [ "${ctype}" = "file" ]; then
             # file 类订阅必须由脚本周期性重新转换(内核不会拉取)
             need_classify=true
+        elif [ "${ctype}" = "http" ] && [ "${MODE}" = "now" ]; then
+            # http 类由内核自管, 但手动同步时补提取完整配置里的 provider DNS
+            extract_dns_only "${cid}" "${curl_url}"
         fi
 
         if $need_classify; then

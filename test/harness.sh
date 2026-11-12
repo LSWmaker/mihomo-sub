@@ -220,6 +220,175 @@ print('  ok: DIRECT-only 配置可独立启动')
 " 2>&1 && PASS=$((PASS+1)) || bad "DIRECT-only YAML 校验" "见上方报错"
 
 # ---------------------------
+# sub.sh: 非 Clash 订阅转换走本地文件(不再二次下载原始 URL)
+# ---------------------------
+say "sub.sh: 非 Clash 订阅用本地文件喂给 subconverter"
+cat > "${CFG}/subs.json" <<'EOF'
+{"subs":[{"id":"p9","name":"非Clash","url":"https://x.example.com/sub","type":"file","enabled":true}]}
+EOF
+rm -f "${CFG}/providers/p9.yaml" "${CFG}/config.yaml" "${CFG}/last_run"
+CALL_LOG="${TESTDIR}/curl.log"
+: > "${CALL_LOG}"
+
+# curl stub: 记录调用参数; 直下返回非 Clash 节点列表; subconverter 返回 Clash 产物
+cat > "${TESTDIR}/stubs/curl" <<'STUB'
+#!/bin/sh
+log="$(dirname "$0")/../curl.log"
+printf '%s\n' "$*" >> "$log"
+out=""; url=""
+while [ $# -gt 0 ]; do
+    case "$1" in
+        -o) out="$2"; shift 2 ;;
+        -H|-w|-X|-d|--max-time) shift 2 ;;
+        *) url="$1"; shift ;;
+    esac
+done
+case "$url" in
+    http://127.0.0.1:25500/*)
+        [ -n "$out" ] && printf 'proxies:\n  - {name: n1, type: ss, server: 127.0.0.1, port: 1, cipher: aes-128-gcm, password: x}\n' > "$out"
+        printf '200' ;;
+    http://127.0.0.1:9090/*)
+        printf '204' ;;
+    *)
+        [ -n "$out" ] && printf 'ss://YWVzLTEyOC1nY206cGFzc0BleGFtcGxlLmNvbToxMjM0#node1\n' > "$out"
+        printf '200' ;;
+esac
+exit 0
+STUB
+chmod +x "${TESTDIR}/stubs/curl"
+
+PATH="${TESTDIR}/stubs:${PATH}" sh "${TESTDIR}/sub_render.sh" --now >/dev/null 2>&1 || true
+
+grep -q 'User-Agent: clash-verge/v2.5.1' "${CALL_LOG}" \
+    && ok "直下带自定义 User-Agent" || bad "直下带自定义 User-Agent" "$(cat "${CALL_LOG}")"
+grep -q '127.0.0.1:25500/sub?target=clash&url=.*raw' "${CALL_LOG}" \
+    && ok "subconverter 收到本地 raw 路径" || bad "subconverter 收到本地 raw 路径" "$(cat "${CALL_LOG}")"
+if grep -q '25500/sub.*x\.example\.com' "${CALL_LOG}"; then
+    bad "subconverter 未二次下载原始 URL" "$(grep 25500 "${CALL_LOG}")"
+else
+    ok "subconverter 未二次下载原始 URL"
+fi
+grep -qE '^proxies:' "${CFG}/providers/p9.yaml" 2>/dev/null && ok "转换产物已生成" || bad "转换产物已生成" "missing"
+[ "$(jq -r '.subs[0].type' "${CFG}/subs.json")" = "file" ] && ok "类型保持 file" || bad "类型保持 file" "$(jq -r '.subs[0].type' "${CFG}/subs.json")"
+
+# ---------------------------
+# sub.sh: 机场完整配置的 provider DNS 自动提取与多机场合并
+# ---------------------------
+say "sub.sh: 完整配置的 DNS 字段自动提取"
+if ! command -v yq >/dev/null 2>&1; then
+    echo "  (本地无 yq, 跳过; 容器内验证)"
+else
+    cat > "${CFG}/subs.json" <<'EOF'
+{"subs":[{"id":"p10","name":"完整配置","url":"https://full.example.com/sub","type":"pending","enabled":true}]}
+EOF
+    rm -f "${CFG}/providers/p10.yaml" "${CFG}/providers/p10.dns.yaml" "${CFG}/config.yaml"
+    CALL_LOG="${TESTDIR}/curl.log"
+    : > "${CALL_LOG}"
+
+    cat > "${TESTDIR}/stubs/curl" <<'STUB'
+#!/bin/sh
+log="$(dirname "$0")/../curl.log"
+printf '%s\n' "$*" >> "$log"
+out=""; url=""
+while [ $# -gt 0 ]; do
+    case "$1" in
+        -o) out="$2"; shift 2 ;;
+        -H|-w|-X|-d|--max-time) shift 2 ;;
+        *) url="$1"; shift ;;
+    esac
+done
+case "$url" in
+    http://127.0.0.1:9090/*) printf '204' ;;
+    *)
+        cat > "$out" <<'CFG'
+mixed-port: 7897
+dns:
+    enable: true
+    nameserver-policy:
+        +.airport-a.example: ['https://10.0.0.1:2096/dns-query/tok#skip-cert-verify=true']
+    proxy-server-nameserver: ['https://10.0.0.2:2096/dns-query/tok#skip-cert-verify=true']
+proxies:
+    - {name: n1, type: ss, server: node.airport-a.example, port: 443, cipher: aes-128-gcm, password: x}
+proxy-groups:
+    - {name: PROXY, type: select, proxies: [n1]}
+rules:
+    - MATCH,PROXY
+CFG
+        printf '200' ;;
+esac
+exit 0
+STUB
+    chmod +x "${TESTDIR}/stubs/curl"
+
+    PATH="${TESTDIR}/stubs:${PATH}" sh "${TESTDIR}/sub_render.sh" --now >/dev/null 2>&1 || true
+
+    [ -s "${CFG}/providers/p10.dns.yaml" ] && ok "提取出 dns 片段" || bad "提取出 dns 片段" "missing"
+    grep -q 'nameserver-policy' "${CFG}/providers/p10.dns.yaml" 2>/dev/null \
+        && ok "片段含 nameserver-policy" || bad "片段含 nameserver-policy" "$(cat "${CFG}/providers/p10.dns.yaml" 2>/dev/null)"
+    grep -q 'nameserver-policy' "${CFG}/.base.yaml" 2>/dev/null \
+        && ok "渲染配置合并 nameserver-policy" || bad "渲染配置合并 nameserver-policy" "missing"
+    grep -q 'proxy-server-nameserver' "${CFG}/.base.yaml" 2>/dev/null \
+        && ok "渲染配置合并 proxy-server-nameserver" || bad "渲染配置合并 proxy-server-nameserver" "missing"
+    cat "${CFG}/.base.yaml" | python -c "
+import yaml, sys
+cfg = yaml.safe_load(sys.stdin)
+dns = cfg['dns']
+assert dns['enable'] is True
+assert '+.airport-a.example' in dns['nameserver-policy']
+assert dns['proxy-server-nameserver'] == ['https://10.0.0.2:2096/dns-query/tok#skip-cert-verify=true']
+print('  ok: DNS 片段结构正确')
+" 2>&1 && PASS=$((PASS+1)) || bad "DNS 片段结构校验" "见上方 python 报错"
+
+    # 存量 http 类型订阅(内核自管)在 --now 时补提取 DNS
+    rm -f "${CFG}/providers/p10.dns.yaml"
+    jq '.subs[0].type = "http"' "${CFG}/subs.json" > "${CFG}/subs.json.tmp" && mv "${CFG}/subs.json.tmp" "${CFG}/subs.json"
+    PATH="${TESTDIR}/stubs:${PATH}" sh "${TESTDIR}/sub_render.sh" --now >/dev/null 2>&1 || true
+    [ -s "${CFG}/providers/p10.dns.yaml" ] \
+        && ok "存量 http 类型 --now 补提取 DNS" || bad "存量 http 类型 --now 补提取 DNS" "missing"
+fi
+
+say "sub.sh: 多机场 DNS 策略合并"
+if ! command -v yq >/dev/null 2>&1; then
+    echo "  (本地无 yq, 跳过; 容器内验证)"
+else
+    cat > "${CFG}/subs.json" <<'EOF'
+{"subs":[
+  {"id":"p11","name":"机场A","url":"https://a.example.com","type":"file","enabled":true},
+  {"id":"p12","name":"机场B","url":"https://b.example.com","type":"file","enabled":true}
+]}
+EOF
+    printf 'proxies: []\n' > "${CFG}/providers/p11.yaml"
+    printf 'proxies: []\n' > "${CFG}/providers/p12.yaml"
+    cat > "${CFG}/providers/p11.dns.yaml" <<'EOF'
+nameserver-policy:
+  +.airport-a.example:
+    - https://10.0.0.1/dns-query
+proxy-server-nameserver:
+  - https://10.0.0.9/dns-query
+EOF
+    cat > "${CFG}/providers/p12.dns.yaml" <<'EOF'
+nameserver-policy:
+  +.airport-b.example:
+    - https://10.0.0.2/dns-query
+proxy-server-nameserver:
+  - https://10.0.0.9/dns-query
+  - https://10.0.0.8/dns-query
+EOF
+    rm -f "${CFG}/config.yaml"
+    PATH="${TESTDIR}/stubs:${PATH}" sh "${TESTDIR}/sub_render.sh" --render >/dev/null 2>&1 || true
+
+    cat "${CFG}/.base.yaml" | python -c "
+import yaml, sys
+cfg = yaml.safe_load(sys.stdin)
+dns = cfg['dns']
+assert '+.airport-a.example' in dns['nameserver-policy']
+assert '+.airport-b.example' in dns['nameserver-policy']
+assert dns['proxy-server-nameserver'] == ['https://10.0.0.8/dns-query', 'https://10.0.0.9/dns-query']
+print('  ok: 多机场策略并存且 server 列表去重')
+" 2>&1 && PASS=$((PASS+1)) || bad "多机场 DNS 合并校验" "见上方 python 报错"
+fi
+
+# ---------------------------
 # 汇总
 # ---------------------------
 printf '\n========== 结果: %d 通过, %d 失败 ==========\n' "$PASS" "$FAIL"

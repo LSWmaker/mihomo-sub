@@ -224,7 +224,7 @@ case "${action}" in
         esac
         jq --arg i "${id}" 'del(.subs[] | select(.id == $i))' "${SUBS_FILE}" \
             > "${SUBS_FILE}.tmp" && mv "${SUBS_FILE}.tmp" "${SUBS_FILE}"
-        rm -f "${PROV_DIR}/${id}.yaml"
+        rm -f "${PROV_DIR}/${id}.yaml" "${PROV_DIR}/${id}.dns.yaml"
         nohup "${SUB_SCRIPT}" --render > /dev/null 2>&1 &
         printf '{"success":true,"message":"订阅已删除"}\n'
         ;;
